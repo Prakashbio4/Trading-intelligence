@@ -178,7 +178,10 @@ function AIReadUnified({ session }) {
   const { aiWhatISee: w, aiNarrative: n, aiDecision: d, aiCorrections: c = [] } = session;
 
   return (
-    <>
+    <div className={styles.aiCols}>
+      {/* Left column: What I See + Narrative */}
+      <div className={styles.aiCol}>
+
       {/* What I See */}
       {w && (
         <div className={styles.block}>
@@ -234,6 +237,11 @@ function AIReadUnified({ session }) {
         </div>
       )}
 
+      </div>{/* end left column */}
+
+      {/* Right column: Decision + Where You Went Wrong */}
+      <div className={styles.aiCol}>
+
       {/* Decision */}
       {d && (
         <div className={`${styles.block} ${styles.verdictBlock} ${
@@ -287,7 +295,9 @@ function AIReadUnified({ session }) {
           </div>
         </div>
       )}
-    </>
+
+      </div>
+    </div>
   );
 }
 
@@ -556,17 +566,13 @@ function SessionDetail({ session, onClose, onUpdate }) {
               </div>
             )}
 
-            {/* Two columns */}
-            <div className={styles.cols}>
-              <div className={styles.col}>
-                <YourRead session={session} />
-              </div>
-              <div className={styles.col}>
-                <ErrorBoundary resetLabel="Dismiss">
-                  <AIRead session={session} />
-                </ErrorBoundary>
-              </div>
-            </div>
+            {/* Your Read — full width */}
+            <YourRead session={session} />
+
+            {/* AI Analysis — 2-column grid */}
+            <ErrorBoundary resetLabel="Dismiss">
+              <AIRead session={session} />
+            </ErrorBoundary>
 
             <OutcomeEditor session={session} onSaved={updated => onUpdate(updated)} />
 
