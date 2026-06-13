@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import UploadZone from '../components/UploadZone.jsx';
 import ChatPanel from '../components/ChatPanel.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
@@ -331,6 +331,9 @@ export default function Analyse() {
           </div>
         )}
 
+        {/* ── Analysis loader ───────────────────────────────────────────── */}
+        {loading && <AnalysisLoader />}
+
         {/* ── AI Response ──────────────────────────────────────────────── */}
         {result?.analysis && (
           <ErrorBoundary onReset={handleReset}>
@@ -356,6 +359,45 @@ export default function Analyse() {
         )}
 
       </div>
+    </div>
+  );
+}
+
+// ── Analysis loader ───────────────────────────────────────────────────────────
+
+const STAGES = [
+  { label: 'Reading chart…',        pct: 12 },
+  { label: 'Identifying trend…',    pct: 28 },
+  { label: 'Assessing pattern…',    pct: 44 },
+  { label: 'Checking indicators…',  pct: 60 },
+  { label: 'Building narrative…',   pct: 76 },
+  { label: 'Forming verdict…',      pct: 88 },
+  { label: 'Finalising…',           pct: 96 },
+];
+
+function AnalysisLoader() {
+  const [idx, setIdx] = useState(0);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    timerRef.current = setInterval(() => {
+      setIdx(i => (i < STAGES.length - 1 ? i + 1 : i));
+    }, 2800);
+    return () => clearInterval(timerRef.current);
+  }, []);
+
+  const stage = STAGES[idx];
+
+  return (
+    <div className={styles.analysisLoader}>
+      <div className={styles.loaderBar}>
+        <div className={styles.loaderFill} style={{ width: `${stage.pct}%` }} />
+      </div>
+      <div className={styles.loaderStage}>
+        <span className={styles.loaderDot} />
+        {stage.label}
+      </div>
+      <p className={styles.loaderHint}>AI is reading the chart independently — this takes ~20 seconds</p>
     </div>
   );
 }
