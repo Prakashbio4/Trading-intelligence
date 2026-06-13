@@ -118,6 +118,37 @@ router.patch('/:id', (req, res) => {
   }
 });
 
+// GET /journal/insights-context — aggregate summary for Insights page chat
+router.get('/insights-context', (req, res) => {
+  try {
+    const sessions = readJournal();
+    const total = sessions.length;
+
+    const verdictCounts = { Take: 0, Skip: 0, Watch: 0 };
+    const patternCounts = {};
+    const aiVerdictCounts = { TAKE: 0, SKIP: 0, WATCH: 0 };
+
+    for (const s of sessions) {
+      if (s.decision) verdictCounts[s.decision] = (verdictCounts[s.decision] || 0) + 1;
+      const pattern = s.userInput?.candlePattern || s.formData?.candlePattern;
+      if (pattern && pattern !== 'No pattern identified') {
+        patternCounts[pattern] = (patternCounts[pattern] || 0) + 1;
+      }
+      const aiVerdict = s.aiDecision?.verdict || s.aiVerdict;
+      if (aiVerdict) aiVerdictCounts[aiVerdict] = (aiVerdictCounts[aiVerdict] || 0) + 1;
+    }
+
+    const topPatterns = Object.entries(patternCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }));
+
+    res.json({ total, verdictCounts, aiVerdictCounts, topPatterns });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not build insights context', detail: err.message });
+  }
+});
+
 // POST /journal/:id/chat — follow-up conversation about a specific session
 router.post('/:id/chat', async (req, res) => {
   const { message } = req.body;
