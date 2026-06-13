@@ -6,6 +6,11 @@ async function handleResponse(res) {
   return data;
 }
 
+export async function analyzeUnified(formData) {
+  const res = await fetch(`${BASE}/analyze`, { method: 'POST', body: formData });
+  return handleResponse(res);
+}
+
 export async function analyzeModule1(formData) {
   const res = await fetch(`${BASE}/analyze/module1`, { method: 'POST', body: formData });
   return handleResponse(res);
