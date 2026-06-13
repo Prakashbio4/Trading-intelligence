@@ -2,12 +2,36 @@ import { useState, useEffect, useRef } from 'react';
 import { sendChatMessage } from '../api/index.js';
 import styles from './ChatPanel.module.css';
 
+function renderMarkdown(text) {
+  return text
+    .split('\n')
+    .map((line, i) => {
+      // Headings
+      if (/^### /.test(line)) return <h4 key={i} style={{ margin: '10px 0 4px', fontSize: '13px', fontWeight: 700 }}>{line.slice(4)}</h4>;
+      if (/^## /.test(line))  return <h3 key={i} style={{ margin: '12px 0 4px', fontSize: '14px', fontWeight: 700 }}>{line.slice(3)}</h3>;
+      if (/^# /.test(line))   return <h2 key={i} style={{ margin: '14px 0 6px', fontSize: '15px', fontWeight: 700 }}>{line.slice(2)}</h2>;
+      // Horizontal rule
+      if (/^---+$/.test(line.trim())) return <hr key={i} style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '10px 0' }} />;
+      // Empty line → spacing
+      if (line.trim() === '') return <div key={i} style={{ height: '6px' }} />;
+      // Inline bold + rest
+      const parts = line.split(/(\*\*[^*]+\*\*)/g).map((part, j) =>
+        /^\*\*[^*]+\*\*$/.test(part)
+          ? <strong key={j}>{part.slice(2, -2)}</strong>
+          : part
+      );
+      return <p key={i} style={{ margin: '2px 0', lineHeight: 1.6 }}>{parts}</p>;
+    });
+}
+
 function Message({ msg }) {
   const isUser = msg.role === 'user';
   return (
     <div className={`${styles.msg} ${isUser ? styles.msgUser : styles.msgAI}`}>
       <span className={styles.msgWho}>{isUser ? 'You' : 'AI'}</span>
-      <p className={styles.msgText}>{msg.content}</p>
+      <div className={styles.msgText}>
+        {isUser ? msg.content : renderMarkdown(msg.content)}
+      </div>
     </div>
   );
 }

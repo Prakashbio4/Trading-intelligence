@@ -252,23 +252,39 @@ router.post('/:id/chat', async (req, res) => {
     }
   }
 
+  // Build AI analysis context — unified sessions use the 4-section fields, legacy use aiAnalysis
+  const aiContext = session.aiWhatISee
+    ? [
+        `WHAT I SEE:\n${JSON.stringify(session.aiWhatISee, null, 2)}`,
+        `NARRATIVE I READ:\n${JSON.stringify(session.aiNarrative, null, 2)}`,
+        `MY DECISION:\n${JSON.stringify(session.aiDecision, null, 2)}`,
+        session.aiCorrections?.length
+          ? `WHERE YOU WENT WRONG:\n${JSON.stringify(session.aiCorrections, null, 2)}`
+          : 'WHERE YOU WENT WRONG: none — your read was correct.',
+      ].join('\n\n')
+    : `AI analysis:\n${JSON.stringify(session.aiAnalysis, null, 2)}`;
+
+  const userContext = session.formData
+    ? JSON.stringify(session.formData, null, 2)
+    : JSON.stringify(session.userInput, null, 2);
+
   const systemPrompt = `You are a technical analysis educator reviewing a chart with a student.
 
-The student previously analysed this chart and received an AI analysis. The full context of that session is below.
-Answer the student's follow-up questions about this specific chart and analysis. Be specific — reference visible price levels, candle shapes, indicator readings, and anything else you can see in the chart image.
+You already analysed this chart and gave the student the verdict below. The student is now asking follow-up questions about YOUR analysis.
+When answering, refer back to what you said — your own trend read, your candle pattern call, your decision, your levels. Own your analysis.
+Be specific — reference visible price levels, candle shapes, indicator readings, and anything else you can see in the chart image.
 Explain your reasoning clearly so the student understands the "why", not just the "what".
 Do not give buy or sell recommendations. Keep answers focused and educational.
 
 SESSION CONTEXT:
 Ticker: ${session.ticker}
 Date: ${session.date}
-Module: ${session.module === '1' ? 'Chart Eye Training' : session.module === '3' ? 'Trade Validator' : 'Narrative Builder'}
 
-User's read:
-${JSON.stringify(session.userInput, null, 2)}
+USER'S READ:
+${userContext}
 
-AI analysis:
-${JSON.stringify(session.aiAnalysis, null, 2)}`;
+YOUR PRIOR ANALYSIS:
+${aiContext}`;
 
   // First message includes the chart image + context; subsequent turns are text only
   const isFirstMessage = history.length === 0;
