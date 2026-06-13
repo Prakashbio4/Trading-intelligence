@@ -149,6 +149,45 @@ router.patch('/:id', (req, res) => {
   }
 });
 
+// POST /journal/insights-chat — chat using full journal history as context
+router.post('/insights-chat', async (req, res) => {
+  const { message, context, history = [] } = req.body;
+  if (!message?.trim()) return res.status(400).json({ error: 'message is required' });
+
+  const { total = 0, verdictCounts = {}, aiVerdictCounts = {}, topPatterns = [] } = context || {};
+
+  const systemPrompt = `You are a technical analysis coach reviewing a student's complete trading journal.
+
+JOURNAL SUMMARY:
+Total sessions: ${total}
+User decisions: ${JSON.stringify(verdictCounts)}
+AI verdicts: ${JSON.stringify(aiVerdictCounts)}
+Top patterns identified: ${topPatterns.map(p => `${p.name} (${p.count}x)`).join(', ') || 'none yet'}
+
+Answer questions about the student's learning patterns, common errors, and areas of strength.
+Be specific and actionable. Do not give buy/sell recommendations.
+If there are fewer than 5 sessions, note that the sample is too small for reliable patterns.`;
+
+  const apiMessages = [
+    ...history.map(m => ({ role: m.role, content: m.content })),
+    { role: 'user', content: message },
+  ];
+
+  try {
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: apiMessages,
+    });
+    res.json({ reply: response.content[0].text });
+  } catch (err) {
+    res.status(502).json({ error: 'Chat failed', detail: err.message });
+  }
+});
+
 // GET /journal/insights-context — aggregate summary for Insights page chat
 router.get('/insights-context', (req, res) => {
   try {
