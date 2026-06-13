@@ -4,39 +4,34 @@ import ChatPanel from '../components/ChatPanel.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import styles from './Journal.module.css';
 
-const MODULE_LABEL = { '1': 'M1 — Chart Eye Training', '2': 'M2 — Narrative Builder', '3': 'M3 — Trade Validator' };
-const MODULE_SHORT = { '1': 'M1 Learn', '2': 'M2 Narrative', '3': 'M3 Validate' };
-
 const VERDICT_CLASS = {
   TRADE: 'badge-green', TAKE: 'badge-green',
-  PASS: 'badge-red', SKIP: 'badge-red', NO_TRADE: 'badge-red',
+  PASS: 'badge-red',  SKIP: 'badge-red', NO_TRADE: 'badge-red',
   CONDITIONAL: 'badge-amber', WATCH: 'badge-amber',
   LEARN: 'badge-muted',
 };
-const OUTCOME_CLASS = {
-  Win: 'badge-green', Loss: 'badge-red', Open: 'badge-teal', Skip: 'badge-muted',
-};
-const CONF_CLASS = { HIGH: 'badge-green', MEDIUM: 'badge-amber', LOW: 'badge-red' };
+const OUTCOME_CLASS = { Win: 'badge-green', Loss: 'badge-red', Open: 'badge-teal', Skip: 'badge-muted' };
+const CONF_CLASS    = { HIGH: 'badge-green', MEDIUM: 'badge-amber', LOW: 'badge-red' };
 
 function lvl(item) {
   if (item == null) return null;
   if (typeof item === 'object') return item.level ?? item.price ?? item.value ?? String(Object.values(item)[0]);
   return item;
 }
-
 function formatDate(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
 }
+function mono(v) { return v != null ? <span className="mono">{v}</span> : null; }
 
 // ── Shared tiny components ────────────────────────────────────────────────────
 
-function Row({ label, value, mono }) {
+function Row({ label, value }) {
   if (!value && value !== 0) return null;
   return (
     <div className={styles.infoRow}>
       <span className={styles.infoKey}>{label}</span>
-      <span className={`${styles.infoVal} ${mono ? 'mono' : ''}`}>{value}</span>
+      <span className={styles.infoVal}>{value}</span>
     </div>
   );
 }
@@ -50,469 +45,365 @@ function ConfBadge({ value }) {
   return <span className={`badge ${CONF_CLASS[value] ?? 'badge-muted'}`}>{value}</span>;
 }
 
-// ── Your Read panels ─────────────────────────────────────────────────────────
+// ── Unified YourRead ──────────────────────────────────────────────────────────
+// Reads from formData (new sessions) with fallback to userInput (legacy)
 
-function YourReadM1({ u }) {
+function YourRead({ session }) {
+  const f = session.formData || session.userInput || {};
+
+  const trend     = f.primaryTrend   || f.trend;
+  const duration  = f.trendDuration;
+  const phase     = f.stockPhase;
+  const structure = f.chartStructure;
+  const opposing  = f.opposingStructure;
+  const pattern   = f.candlePattern;
+  const pDir      = f.patternDirection;
+  const pQual     = f.patternQuality;
+  const pPrior    = f.priorTrendMatch;
+  const volAvg    = f.volumeVsAverage || f.volumeVsAvg;
+  const volChar   = f.volumeCharacter;
+  const macd      = f.macd;
+  const rsi       = f.rsiValue ? `${f.rsiValue} — ${f.rsiDirection || ''}` : f.rsiDirection;
+  const bb        = f.bollingerBands;
+  const sup       = f.nearestSupport  || f.supportLevel;
+  const res       = f.nearestResistance || f.resistanceLevel;
+  const srConf    = f.srConfidence;
+  const narrative = f.narrative || f.notes;
+
   return (
     <div className={styles.block}>
       <SectionHead>Your Read</SectionHead>
 
       <div className={styles.infoGroup}>
-        <Row label="Trend"          value={u.trend} />
-        <Row label="Duration"       value={u.trendDuration} />
-        <Row label="Structure"      value={u.chartStructure} />
-        <Row label="Opposing"       value={u.opposingStructure} />
+        <Row label="Trend"      value={trend} />
+        <Row label="Duration"   value={duration} />
+        <Row label="Phase"      value={phase} />
+        <Row label="Structure"  value={structure} />
+        <Row label="Opposing"   value={opposing} />
       </div>
 
       <div className={styles.infoGroup}>
-        <Row label="Pattern"        value={u.candlePattern} />
-        <Row label="Direction"      value={u.patternDirection} />
-        <Row label="Quality"        value={u.patternQuality} />
-        <Row label="Prior trend"    value={u.priorTrendMatch} />
+        <Row label="Pattern"    value={pattern} />
+        <Row label="Direction"  value={pDir} />
+        <Row label="Quality"    value={pQual} />
+        <Row label="Prior trend" value={pPrior} />
       </div>
 
       <div className={styles.infoGroup}>
-        <Row label="Volume"         value={u.volumeVsAvg} />
-        <Row label="MACD"           value={u.macd} />
-        <Row label="RSI"            value={u.rsiValue ? `${u.rsiValue} — ${u.rsiDirection}` : u.rsiDirection} mono />
-        <Row label="Bollinger"      value={u.bollingerBands} />
+        <Row label="Volume"     value={volAvg} />
+        <Row label="Vol char."  value={volChar} />
+        <Row label="MACD"       value={macd} />
+        <Row label="RSI"        value={rsi ? mono(rsi) : null} />
+        <Row label="Bollinger"  value={bb} />
       </div>
 
       <div className={styles.infoGroup}>
-        <Row label="Support"        value={u.supportLevel ? `₹${u.supportLevel}` : null} mono />
-        <Row label="Resistance"     value={u.resistanceLevel ? `₹${u.resistanceLevel}` : null} mono />
-        <Row label="S&R confidence" value={u.srConfidence} />
+        <Row label="Support"    value={sup    ? mono(`₹${sup}`)  : null} />
+        <Row label="Resistance" value={res    ? mono(`₹${res}`)  : null} />
+        <Row label="S&R conf."  value={srConf} />
       </div>
 
-      {u.notes && (
+      {narrative && (
         <div className={styles.narrativeBlock}>
-          <span className={styles.infoKey}>Notes</span>
-          <p className={styles.narrativeText}>{u.notes}</p>
+          <span className={styles.infoKey}>Narrative</span>
+          <p className={styles.narrativeText}>{narrative}</p>
+        </div>
+      )}
+
+      {/* Decision chip for unified sessions */}
+      {session.decision && (
+        <div className={styles.decisionChips}>
+          <span className={`badge ${
+            session.decision === 'Take' ? 'badge-green' :
+            session.decision === 'Skip' ? 'badge-red' : 'badge-amber'
+          }`}>{session.decision.toUpperCase()}</span>
+          {session.confidence && (
+            <span className={`badge badge-muted`}>{session.confidence} confidence</span>
+          )}
+        </div>
+      )}
+
+      {/* Planned levels for TAKE sessions */}
+      {session.decision === 'Take' && session.plannedEntry != null && (
+        <div className={styles.plannedLevels}>
+          <span className={styles.infoKey} style={{ display: 'block', marginBottom: 8 }}>Planned levels (locked)</span>
+          <div className={styles.levelCells}>
+            <div className={styles.levelCell}>
+              <span className={styles.levelKey}>Entry</span>
+              <span className="mono">₹{session.plannedEntry}</span>
+            </div>
+            <div className={styles.levelCell}>
+              <span className={styles.levelKey}>SL</span>
+              <span className="mono danger">₹{session.plannedSL}</span>
+            </div>
+            <div className={styles.levelCell}>
+              <span className={styles.levelKey}>Target</span>
+              <span className="mono accent">₹{session.plannedTarget}</span>
+            </div>
+            {session.plannedRRR != null && (
+              <div className={styles.levelCell}>
+                <span className={styles.levelKey}>RRR</span>
+                <span className={`mono ${session.plannedRRR >= 1.5 ? 'accent' : 'danger'}`}>
+                  {session.plannedRRR}
+                </span>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function YourReadM3({ u }) {
-  return (
-    <div className={styles.block}>
-      <SectionHead>Your Read</SectionHead>
+// ── Unified AIRead ────────────────────────────────────────────────────────────
+// Shows 4-section response for new sessions, falls back to legacy display
 
-      <div className={styles.infoGroup}>
-        <Row label="Trend"          value={u.trend} />
-        <Row label="Duration"       value={u.trendDuration} />
-        <Row label="Phase"          value={u.stockPhase} />
-        <Row label="Structure"      value={u.chartStructure} />
-        <Row label="Opposing"       value={u.opposingStructure} />
-      </div>
-
-      <div className={styles.infoGroup}>
-        <Row label="Volume char."   value={u.volumeCharacter} />
-        <Row label="Volume vs avg"  value={u.volumeVsAvg} />
-        <Row label="Bollinger"      value={u.bollingerBands} />
-        <Row label="MACD"           value={u.macd} />
-        <Row label="RSI"            value={u.rsiValue ? `${u.rsiValue} — ${u.rsiDirection}` : u.rsiDirection} mono />
-      </div>
-
-      <div className={styles.infoGroup}>
-        <Row label="Pattern"        value={u.candlePattern} />
-        <Row label="Quality"        value={u.patternQuality} />
-        <Row label="Prior trend"    value={u.priorTrendMatch} />
-        <Row label="Signal volume"  value={u.signalVolume} />
-      </div>
-
-      <div className={styles.infoGroup}>
-        <Row label="Entry"          value={u.entryPrice ? `₹${u.entryPrice}` : null} mono />
-        <Row label="Stop Loss"      value={u.stopLoss ? `₹${u.stopLoss}` : null} mono />
-        <Row label="Target"         value={u.target ? `₹${u.target}` : null} mono />
-        <Row label="RRR"            value={u.rrr} mono />
-        <Row label="Support"        value={u.supportLevel ? `₹${u.supportLevel}` : null} mono />
-        <Row label="Resistance"     value={u.resistanceLevel ? `₹${u.resistanceLevel}` : null} mono />
-      </div>
-
-      {u.narrative && (
-        <div className={styles.narrativeBlock}>
-          <span className={styles.infoKey}>Your narrative</span>
-          <p className={styles.narrativeText}>{u.narrative}</p>
-        </div>
-      )}
-
-      {u.decision && (
-        <div className={styles.decisionChip}>
-          Your decision: <strong>{u.decision}</strong>
-        </div>
-      )}
-    </div>
-  );
+function AIRead({ session }) {
+  // New unified sessions
+  if (session.aiWhatISee) {
+    return <AIReadUnified session={session} />;
+  }
+  // Legacy module 1
+  if (session.module === '1' && session.aiAnalysis) {
+    return <AIReadLegacyM1 aiAnalysis={session.aiAnalysis} />;
+  }
+  // Legacy module 3
+  if (session.module === '3' && session.aiAnalysis) {
+    return <AIReadLegacyM3 aiAnalysis={session.aiAnalysis} />;
+  }
+  return null;
 }
 
-// ── AI output panels ──────────────────────────────────────────────────────────
-
-function AIReadM1({ aiAnalysis }) {
-  const ann = aiAnalysis?.aiAnnotation;
-  const cmp = aiAnalysis?.comparison;
-  const sa  = aiAnalysis?.setupAssessment;
+function AIReadUnified({ session }) {
+  const { aiWhatISee: w, aiNarrative: n, aiDecision: d, aiCorrections: c = [] } = session;
 
   return (
     <>
-      {/* Annotation */}
-      {ann && (
+      {/* What I See */}
+      {w && (
         <div className={styles.block}>
-          <SectionHead>AI's Read</SectionHead>
-
+          <SectionHead>What the AI Saw</SectionHead>
           <div className={styles.infoGroup}>
             <div className={styles.infoRow}>
               <span className={styles.infoKey}>Trend</span>
-              <span className={styles.infoVal}>{ann.trend?.direction} — {ann.trend?.duration}</span>
-              <ConfBadge value={ann.trend?.confidence} />
+              <span className={styles.infoVal}>{w.trend?.direction}</span>
+              <ConfBadge value={w.trend?.confidence} />
             </div>
             <div className={styles.infoRow}>
               <span className={styles.infoKey}>Structure</span>
-              <span className={styles.infoVal}>{ann.chartStructure?.pattern || '—'}</span>
-              <ConfBadge value={ann.chartStructure?.confidence} />
+              <span className={styles.infoVal}>{w.chartStructure?.pattern || '—'}</span>
+              <ConfBadge value={w.chartStructure?.confidence} />
             </div>
             <div className={styles.infoRow}>
               <span className={styles.infoKey}>Pattern</span>
-              <span className={styles.infoVal}>{ann.candlePattern?.name || 'No pattern identified'} — {ann.candlePattern?.quality}</span>
+              <span className={styles.infoVal}>{w.candlePattern?.name || 'No pattern'}</span>
+              <ConfBadge value={w.candlePattern?.confidence} />
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoKey}>Volume</span>
+              <span className={styles.infoVal}>{w.volume?.vsAverage}</span>
+              <ConfBadge value={w.volume?.confidence} />
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoKey}>MACD</span>
+              <span className={styles.infoVal}>{w.macd?.status}</span>
+              <ConfBadge value={w.macd?.confidence} />
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoKey}>RSI</span>
+              <span className={`${styles.infoVal} mono`}>
+                {w.rsi?.value != null ? `${w.rsi.value}  ` : ''}{w.rsi?.direction}
+              </span>
+              <ConfBadge value={w.rsi?.confidence} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Narrative */}
+      {n?.aiNarrative && (
+        <div className={styles.block}>
+          <SectionHead>AI Narrative</SectionHead>
+          <p className={styles.narrativeText}>{n.aiNarrative}</p>
+          {n.divergences && (
+            <div className={styles.divergeBlock}>
+              <span className={styles.agreeLabel}>Divergences</span>
+              <p>{n.divergences}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Decision */}
+      {d && (
+        <div className={`${styles.block} ${styles.verdictBlock} ${
+          d.verdict === 'TAKE' ? styles.verdictTrade :
+          d.verdict === 'SKIP' ? styles.verdictPass  : styles.verdictWatch
+        }`}>
+          <div className={styles.sectionHeadRow}>
+            <span className={`${styles.verdictWord} ${
+              d.verdict === 'TAKE' ? styles.verdictWordTrade :
+              d.verdict === 'SKIP' ? styles.verdictWordPass  : styles.verdictWordWatch
+            }`}>{d.verdict}</span>
+          </div>
+          {d.reasoning && <p className={styles.verdictReason}>{d.reasoning}</p>}
+          {d.verdict === 'TAKE' && d.entry != null && (
+            <div className={styles.levelCells} style={{ marginTop: 12 }}>
+              <div className={styles.levelCell}>
+                <span className={styles.levelKey}>Entry</span>
+                <span className="mono">₹{d.entry}</span>
+              </div>
+              <div className={styles.levelCell}>
+                <span className={styles.levelKey}>SL</span>
+                <span className="mono danger">₹{d.stopLoss}</span>
+              </div>
+              <div className={styles.levelCell}>
+                <span className={styles.levelKey}>Target</span>
+                <span className="mono accent">₹{d.target}</span>
+              </div>
+              <div className={styles.levelCell}>
+                <span className={styles.levelKey}>RRR</span>
+                <span className={`mono ${d.rrr >= 1.5 ? 'accent' : 'danger'}`}>{d.rrr}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Where You Went Wrong */}
+      {c.length > 0 && (
+        <div className={styles.block}>
+          <SectionHead>Where You Went Wrong</SectionHead>
+          <div className={styles.corrections}>
+            {c.map((item, i) => (
+              <div key={i} className={styles.correction}>
+                <div className={styles.correctionHeader}>
+                  <span className={styles.correctionRank}>{item.rank}</span>
+                  <span className={styles.correctionField}>{item.field}</span>
+                </div>
+                <p className={styles.correctionText}>{item.correction}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Legacy AI displays (for the 3 existing sessions) ─────────────────────────
+
+function AIReadLegacyM1({ aiAnalysis }) {
+  const ann = aiAnalysis?.aiAnnotation;
+  const cmp = aiAnalysis?.comparison;
+  const sa  = aiAnalysis?.setupAssessment;
+  if (!ann && !cmp && !sa) return null;
+
+  return (
+    <>
+      {ann && (
+        <div className={styles.block}>
+          <SectionHead>AI's Read</SectionHead>
+          <div className={styles.infoGroup}>
+            <div className={styles.infoRow}>
+              <span className={styles.infoKey}>Trend</span>
+              <span className={styles.infoVal}>{ann.trend?.direction}</span>
+              <ConfBadge value={ann.trend?.confidence} />
+            </div>
+            <div className={styles.infoRow}>
+              <span className={styles.infoKey}>Pattern</span>
+              <span className={styles.infoVal}>{ann.candlePattern?.name || 'No pattern'} — {ann.candlePattern?.quality}</span>
               <ConfBadge value={ann.candlePattern?.confidence} />
             </div>
-            {ann.candlePattern?.reasoning && (
-              <p className={styles.aiNote}>{ann.candlePattern.reasoning}</p>
-            )}
-          </div>
-
-          <div className={styles.infoGroup}>
             <div className={styles.infoRow}>
               <span className={styles.infoKey}>Volume</span>
               <span className={styles.infoVal}>{ann.volume?.vsAverage}</span>
               <ConfBadge value={ann.volume?.confidence} />
             </div>
-            {ann.volume?.note && <p className={styles.aiNote}>{ann.volume.note}</p>}
-            <div className={styles.infoRow}>
-              <span className={styles.infoKey}>MACD</span>
-              <span className={styles.infoVal}>{ann.indicators?.macd?.status}</span>
-              <ConfBadge value={ann.indicators?.macd?.confidence} />
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoKey}>RSI</span>
-              <span className={`${styles.infoVal} mono`}>
-                {ann.indicators?.rsi?.value != null ? ann.indicators.rsi.value : '—'} — {ann.indicators?.rsi?.direction}
-              </span>
-              <ConfBadge value={ann.indicators?.rsi?.confidence} />
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoKey}>Bollinger</span>
-              <span className={styles.infoVal}>{ann.indicators?.bollingerBands?.status}</span>
-              <ConfBadge value={ann.indicators?.bollingerBands?.confidence} />
-            </div>
           </div>
-
-          {(ann.keyLevels?.support?.length > 0 || ann.keyLevels?.resistance?.length > 0) && (
-            <div className={styles.levelsBlock}>
-              {ann.keyLevels.support?.map((s, i) => (
-                <div key={i} className={styles.levelChip}>
-                  <span className={styles.levelS}>S</span>
-                  <span className="mono accent" style={{ fontSize: 12 }}>{lvl(s)}</span>
-                </div>
-              ))}
-              {ann.keyLevels.resistance?.map((r, i) => (
-                <div key={i} className={styles.levelChip}>
-                  <span className={styles.levelR}>R</span>
-                  <span className="mono danger" style={{ fontSize: 12 }}>{lvl(r)}</span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
-
-      {/* Comparison */}
-      {cmp && (
+      {cmp?.primaryLearningPoint && (
         <div className={styles.block}>
-          <div className={styles.sectionHeadRow}>
-            <SectionHead>Field-by-Field Comparison</SectionHead>
-            {cmp.overallAgreement && (
-              <span className={`badge ${CONF_CLASS[cmp.overallAgreement] ?? 'badge-muted'}`}>
-                {cmp.overallAgreement} agreement
-              </span>
-            )}
-          </div>
-
-          <div className={styles.cmpList}>
-            {[
-              { label: 'Trend',           f: 'trend'          },
-              { label: 'Chart Structure', f: 'chartStructure' },
-              { label: 'Candle Pattern',  f: 'candlePattern'  },
-              { label: 'Volume',          f: 'volume'         },
-              { label: 'Indicators',      f: 'indicators'     },
-              { label: 'S&R Levels',      f: 'srLevels'       },
-            ].map(({ label, f }) => {
-              const field = cmp[f];
-              if (!field) return null;
-              return (
-                <div key={f} className={`${styles.cmpItem} ${field.match === true ? styles.cmpGreen : field.match === false ? styles.cmpRed : ''}`}>
-                  <div className={styles.cmpTop}>
-                    <span className={styles.cmpLabel}>{label}</span>
-                    <span className={field.match === true ? styles.matchY : field.match === false ? styles.matchN : styles.matchNeutral}>
-                      {field.match === true ? '✓' : field.match === false ? '✗' : '—'}
-                    </span>
-                  </div>
-                  <div className={styles.cmpReadRow}>
-                    <span className={styles.cmpWho}>You</span>
-                    <span className={styles.cmpVal}>{field.userRead || '—'}</span>
-                  </div>
-                  <div className={styles.cmpReadRow}>
-                    <span className={styles.cmpWho}>AI</span>
-                    <span className={styles.cmpVal}>{field.aiRead || '—'}</span>
-                  </div>
-                  {field.note && field.match === false && (
-                    <p className={styles.cmpNote}>→ {field.note}</p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {cmp.primaryLearningPoint && (
-            <div className={styles.lpBox}>
-              <span className={styles.lpLabel}>Primary Learning Point</span>
-              <p className={styles.lpText}>{cmp.primaryLearningPoint}</p>
-            </div>
-          )}
+          <SectionHead>Primary Learning Point</SectionHead>
+          <p className={styles.narrativeText}>{cmp.primaryLearningPoint}</p>
         </div>
       )}
-
-      {/* Setup assessment */}
       {sa && (
         <div className={`${styles.block} ${styles.verdictBlock} ${
           sa.verdict === 'TRADE' ? styles.verdictTrade :
           sa.verdict === 'PASS'  ? styles.verdictPass  : styles.verdictWatch
         }`}>
-          <div className={styles.sectionHeadRow}>
-            <span className={`${styles.verdictWord} ${
-              sa.verdict === 'TRADE' ? styles.verdictWordTrade :
-              sa.verdict === 'PASS'  ? styles.verdictWordPass  : styles.verdictWordWatch
-            }`}>{sa.verdict}</span>
-            <span className={styles.checkScore}>{sa.checklistScore} checks passed</span>
-          </div>
-
+          <span className={`${styles.verdictWord} ${
+            sa.verdict === 'TRADE' ? styles.verdictWordTrade :
+            sa.verdict === 'PASS'  ? styles.verdictWordPass  : styles.verdictWordWatch
+          }`}>{sa.verdict}</span>
           {sa.verdictReason && <p className={styles.verdictReason}>{sa.verdictReason}</p>}
-
-          <div className={styles.checkGrid}>
-            {sa.checks?.map((c, i) => (
-              <div key={i} className={styles.checkRow}>
-                <span className={c.passed ? styles.checkY : styles.checkN}>{c.passed ? '✓' : '✗'}</span>
-                <div>
-                  <div className={styles.checkLabel}>{c.label}</div>
-                  {c.note && <div className={styles.checkNote}>{c.note}</div>}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {sa.proposedLevels && (sa.proposedLevels.entry || sa.proposedLevels.stopLoss || sa.proposedLevels.target) && (
-            <div className={styles.proposedLevels}>
-              <span className={styles.infoKey} style={{ marginBottom: 8, display: 'block' }}>AI Proposed Levels</span>
-              <div className={styles.levelCells}>
-                {sa.proposedLevels.entry != null && (
-                  <div className={styles.levelCell}>
-                    <span className={styles.levelKey}>Entry</span>
-                    <span className="mono" style={{ fontSize: 15 }}>₹{sa.proposedLevels.entry}</span>
-                  </div>
-                )}
-                {sa.proposedLevels.stopLoss != null && (
-                  <div className={styles.levelCell}>
-                    <span className={styles.levelKey}>Stop Loss</span>
-                    <span className="mono danger" style={{ fontSize: 15 }}>₹{sa.proposedLevels.stopLoss}</span>
-                  </div>
-                )}
-                {sa.proposedLevels.target != null && (
-                  <div className={styles.levelCell}>
-                    <span className={styles.levelKey}>Target</span>
-                    <span className="mono accent" style={{ fontSize: 15 }}>₹{sa.proposedLevels.target}</span>
-                  </div>
-                )}
-                {sa.proposedLevels.rrr != null && (
-                  <div className={styles.levelCell}>
-                    <span className={styles.levelKey}>RRR</span>
-                    <span className={`mono ${parseFloat(sa.proposedLevels.rrr) >= 1.5 ? 'accent' : 'danger'}`} style={{ fontSize: 15 }}>
-                      {sa.proposedLevels.rrr}
-                    </span>
-                  </div>
-                )}
-              </div>
-              {sa.proposedLevels.reasoning && (
-                <p className={styles.aiNote} style={{ marginTop: 8 }}>{sa.proposedLevels.reasoning}</p>
-              )}
-            </div>
-          )}
         </div>
       )}
     </>
   );
 }
 
-function AIReadM3({ aiAnalysis }) {
-  const { verdict, confidence, chartObservations, checklistResults, levelValidation, deviations } = aiAnalysis ?? {};
-
+function AIReadLegacyM3({ aiAnalysis }) {
+  const { verdict, checklistResults, levelValidation } = aiAnalysis ?? {};
+  if (!verdict) return null;
   const verdictCls = verdict === 'TRADE' || verdict === 'TAKE' ? styles.verdictTrade
     : verdict === 'PASS' || verdict === 'SKIP' || verdict === 'NO_TRADE' ? styles.verdictPass
     : styles.verdictWatch;
-
   const verdictWordCls = verdict === 'TRADE' || verdict === 'TAKE' ? styles.verdictWordTrade
     : verdict === 'PASS' || verdict === 'SKIP' || verdict === 'NO_TRADE' ? styles.verdictWordPass
     : styles.verdictWordWatch;
-
   return (
-    <>
-      {/* Verdict */}
-      {verdict && (
-        <div className={`${styles.block} ${styles.verdictBlock} ${verdictCls}`}>
-          <div className={styles.sectionHeadRow}>
-            <span className={`${styles.verdictWord} ${verdictWordCls}`}>{verdict}</span>
-            <ConfBadge value={confidence} />
-          </div>
-          {Array.isArray(checklistResults) && checklistResults.length > 0 && (
-            <span className={styles.checkScore}>
-              {checklistResults.filter(c => c.passed).length}/{checklistResults.length} checks passed
-            </span>
-          )}
-        </div>
+    <div className={`${styles.block} ${styles.verdictBlock} ${verdictCls}`}>
+      <span className={`${styles.verdictWord} ${verdictWordCls}`}>{verdict}</span>
+      {checklistResults && (
+        <span className={styles.checkScore}>
+          {checklistResults.filter(c => c.passed).length}/{checklistResults.length} checks passed
+        </span>
       )}
-
-      {/* Chart observations */}
-      {chartObservations && (
-        <div className={styles.block}>
-          <SectionHead>AI's Chart Read</SectionHead>
-          <div className={styles.infoGroup}>
-            <div className={styles.infoRow}>
-              <span className={styles.infoKey}>Trend</span>
-              <span className={styles.infoVal}>{chartObservations.trend?.direction}</span>
-              <ConfBadge value={chartObservations.trend?.confidence} />
-            </div>
-            <div className={styles.infoRow}>
-              <span className={styles.infoKey}>Pattern</span>
-              <span className={styles.infoVal}>{chartObservations.candlePattern?.name || 'No pattern identified'}</span>
-              <ConfBadge value={chartObservations.candlePattern?.confidence} />
-            </div>
-            {chartObservations.candlePattern?.reasoning && (
-              <p className={styles.aiNote}>{chartObservations.candlePattern.reasoning}</p>
-            )}
-            <div className={styles.infoRow}>
-              <span className={styles.infoKey}>Volume</span>
-              <span className={styles.infoVal}>{chartObservations.volume?.assessment}</span>
-              <ConfBadge value={chartObservations.volume?.confidence} />
-            </div>
-          </div>
-          {(chartObservations.keyLevels?.support?.length > 0 || chartObservations.keyLevels?.resistance?.length > 0) && (
-            <div className={styles.levelsBlock}>
-              {chartObservations.keyLevels.support?.map((s, i) => (
-                <div key={i} className={styles.levelChip}>
-                  <span className={styles.levelS}>S</span>
-                  <span className="mono accent" style={{ fontSize: 12 }}>{lvl(s)}</span>
-                </div>
-              ))}
-              {chartObservations.keyLevels.resistance?.map((r, i) => (
-                <div key={i} className={styles.levelChip}>
-                  <span className={styles.levelR}>R</span>
-                  <span className="mono danger" style={{ fontSize: 12 }}>{lvl(r)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Checklist */}
-      {checklistResults?.length > 0 && (
-        <div className={styles.block}>
-          <SectionHead>Varsity Checklist</SectionHead>
-          <div className={styles.checkGrid}>
-            {checklistResults.map((c, i) => (
-              <div key={i} className={styles.checkRow}>
-                <span className={c.passed ? styles.checkY : styles.checkN}>{c.passed ? '✓' : '✗'}</span>
-                <div>
-                  <div className={styles.sectionHeadRow}>
-                    <span className={styles.checkLabel}>{c.item}</span>
-                    <ConfBadge value={c.confidence} />
-                  </div>
-                  {c.comment && <div className={styles.checkNote}>{c.comment}</div>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Level validation */}
-      {levelValidation && (
-        <div className={styles.block}>
-          <SectionHead>Level Validation</SectionHead>
-          <div className={styles.checkGrid}>
-            {['entry', 'stopLoss', 'target'].map(key => {
-              const lv = levelValidation[key];
-              if (!lv) return null;
-              return (
-                <div key={key} className={styles.checkRow}>
-                  <span className={lv.valid ? styles.checkY : styles.checkN}>{lv.valid ? '✓' : '✗'}</span>
-                  <div>
-                    <span className={styles.checkLabel}>{key === 'stopLoss' ? 'Stop Loss' : key.charAt(0).toUpperCase() + key.slice(1)}</span>
-                    {lv.comment && <div className={styles.checkNote}>{lv.comment}</div>}
-                    {lv.suggestedLevel && <div className={`${styles.checkNote} accent`}>Suggested: ₹{lv.suggestedLevel}</div>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {levelValidation.rrr && (
-            <div className={styles.rrrRow}>
-              <span className={styles.infoKey}>RRR</span>
-              <span className={`mono ${levelValidation.rrr.meetsMinimum ? 'accent' : 'danger'}`} style={{ fontSize: 15 }}>
-                {levelValidation.rrr.calculated ?? '—'}
-              </span>
-              <span className="muted" style={{ fontSize: 12 }}>
-                {levelValidation.rrr.meetsMinimum ? '✓ passes' : `✗ min ${levelValidation.rrr.minimum ?? '1:1.5'}`}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Deviations */}
-      {deviations?.length > 0 && (
-        <div className={styles.block}>
-          <SectionHead>Deviations</SectionHead>
-          {deviations.map((d, i) => (
-            <p key={i} className={styles.deviation}>→ {d}</p>
-          ))}
-        </div>
-      )}
-    </>
+    </div>
   );
 }
 
 // ── Outcome editor ────────────────────────────────────────────────────────────
 
 function OutcomeEditor({ session, onSaved }) {
-  const [outcome, setOutcome]     = useState(session.outcome ?? '');
-  const [exitPrice, setExitPrice] = useState(session.exitPrice ?? '');
-  const [notes, setNotes]         = useState(session.notes ?? '');
-  const [saving, setSaving]       = useState(false);
+  const isTake = session.decision === 'Take';
+
+  const [outcome,      setOutcome]      = useState(session.outcome      ?? '');
+  const [actualEntry,  setActualEntry]  = useState(session.actualEntry  ?? '');
+  const [actualExit,   setActualExit]   = useState(session.actualExit   ?? '');
+  const [notes,        setNotes]        = useState(session.notes        ?? '');
+  const [saving,       setSaving]       = useState(false);
 
   async function save() {
     setSaving(true);
     try {
-      const updated = await updateSession(session.id, {
-        outcome:   outcome || undefined,
-        exitPrice: exitPrice ? parseFloat(exitPrice) : undefined,
-        notes:     notes || undefined,
-      });
+      const patch = { outcome: outcome || undefined, notes: notes || undefined };
+      if (isTake) {
+        if (actualEntry) patch.actualEntry = parseFloat(actualEntry);
+        if (actualExit)  patch.actualExit  = parseFloat(actualExit);
+      } else if (session.exitPrice || actualExit) {
+        if (actualExit) patch.exitPrice = parseFloat(actualExit);
+      }
+      const updated = await updateSession(session.id, patch);
       onSaved(updated);
     } finally {
       setSaving(false);
     }
   }
+
+  // Planned vs actual delta (only for TAKE with planned levels)
+  const hasPlanned = isTake && session.plannedEntry != null;
+  const hasActual  = hasPlanned && session.actualEntry != null && session.actualExit != null;
+
+  const actualRRR = hasActual
+    ? Math.round(((session.actualExit - session.actualEntry) / (session.actualEntry - session.plannedSL)) * 100) / 100
+    : null;
+  const entrySlippage = hasActual
+    ? Math.round((session.actualEntry - session.plannedEntry) * 100) / 100
+    : null;
 
   return (
     <div className={styles.outcomeSection}>
@@ -523,29 +414,87 @@ function OutcomeEditor({ session, onSaved }) {
           <option value="">Outcome…</option>
           <option>Win</option>
           <option>Loss</option>
+          <option>Open</option>
           <option>Skip</option>
         </select>
-        {session.module === '3' && (
+      </div>
+
+      {/* Actual levels — shown for TAKE sessions */}
+      {isTake && (
+        <div className={styles.actualLevels}>
+          <span className={styles.infoKey} style={{ display: 'block', marginBottom: 8 }}>Actual levels</span>
+          <div className={styles.outcomeRow}>
+            <input
+              type="number"
+              placeholder="Actual entry ₹"
+              value={actualEntry}
+              onChange={e => setActualEntry(e.target.value)}
+              className={styles.smallInput}
+              step="0.01"
+            />
+            <input
+              type="number"
+              placeholder="Exit price ₹"
+              value={actualExit}
+              onChange={e => setActualExit(e.target.value)}
+              className={styles.smallInput}
+              step="0.01"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Exit price for non-TAKE sessions */}
+      {!isTake && (
+        <div className={styles.outcomeRow} style={{ marginTop: 8 }}>
           <input
             type="number"
             placeholder="Exit price ₹"
-            value={exitPrice}
-            onChange={e => setExitPrice(e.target.value)}
+            value={actualExit}
+            onChange={e => setActualExit(e.target.value)}
             className={styles.smallInput}
             step="0.01"
           />
-        )}
-        {session.pnl != null && (
-          <span className={`mono ${session.pnl >= 0 ? 'accent' : 'danger'}`} style={{ fontSize: 14 }}>
-            P&L: {session.pnl >= 0 ? '+' : ''}₹{session.pnl}
-          </span>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Planned vs actual delta */}
+      {hasActual && (
+        <div className={styles.deltaBlock}>
+          <span className={styles.infoKey} style={{ display: 'block', marginBottom: 8 }}>Planned vs Actual</span>
+          <div className={styles.levelCells}>
+            <div className={styles.levelCell}>
+              <span className={styles.levelKey}>Entry slippage</span>
+              <span className={`mono ${entrySlippage >= 0 ? 'danger' : 'accent'}`}>
+                {entrySlippage >= 0 ? '+' : ''}{entrySlippage}
+              </span>
+            </div>
+            <div className={styles.levelCell}>
+              <span className={styles.levelKey}>Planned RRR</span>
+              <span className="mono">{session.plannedRRR}</span>
+            </div>
+            {actualRRR != null && (
+              <div className={styles.levelCell}>
+                <span className={styles.levelKey}>Actual RRR</span>
+                <span className={`mono ${actualRRR >= 1.5 ? 'accent' : 'danger'}`}>{actualRRR}</span>
+              </div>
+            )}
+            {session.pnl != null && (
+              <div className={styles.levelCell}>
+                <span className={styles.levelKey}>P&L</span>
+                <span className={`mono ${session.pnl >= 0 ? 'accent' : 'danger'}`}>
+                  {session.pnl >= 0 ? '+' : ''}₹{session.pnl}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <textarea
         value={notes}
         onChange={e => setNotes(e.target.value)}
-        placeholder="What actually happened? Anything you'd do differently? Write freely…"
+        placeholder="What actually happened? Anything you'd do differently?"
         className={styles.notesArea}
         rows={4}
       />
@@ -562,13 +511,12 @@ function OutcomeEditor({ session, onSaved }) {
 // ── Session detail modal ──────────────────────────────────────────────────────
 
 function SessionDetail({ session, onClose, onUpdate }) {
-  const { userInput, aiAnalysis } = session;
+  const lookback = session.formData?.lookbackWindow || session.userInput?.lookbackWindow;
 
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={e => e.stopPropagation()}>
 
-        {/* Modal header */}
         <div className={styles.modalHeader}>
           <div className={styles.modalTitle}>
             <div className={styles.modalTopRow}>
@@ -581,10 +529,8 @@ function SessionDetail({ session, onClose, onUpdate }) {
             </div>
             <span className={styles.modalMeta}>
               {formatDate(session.createdAt)}
-              {' · '}
-              {MODULE_SHORT[session.module]}
-              {session.userInput?.lookbackWindow && ` · ${session.userInput.lookbackWindow}-session lookback`}
-              {session.promptVersion && <span className={styles.promptVer}> · {session.promptVersion}</span>}
+              {lookback && ` · ${lookback}-session lookback`}
+              {session.chartSource && ` · ${session.chartSource}`}
             </span>
             {session.learningTags?.length > 0 && (
               <div className={styles.modalTags}>
@@ -599,38 +545,31 @@ function SessionDetail({ session, onClose, onUpdate }) {
 
         <div className={styles.modalBody}>
           <ErrorBoundary resetLabel="Close">
-            {/* Chart */}
+            {/* Chart image */}
             {session.imagePath && (
               <div className={styles.chartWrap}>
                 <img
-                  src={`http://localhost:3001${session.imagePath}`}
+                  src={`http://localhost:3001/${session.imagePath.replace(/^\//, '')}`}
                   alt="chart"
                   className={styles.chartImg}
                 />
               </div>
             )}
 
-            {/* Two-column: your read + AI read */}
+            {/* Two columns */}
             <div className={styles.cols}>
               <div className={styles.col}>
-                {session.module === '1' && userInput && <YourReadM1 u={userInput} />}
-                {session.module === '3' && userInput && <YourReadM3 u={userInput} />}
+                <YourRead session={session} />
               </div>
               <div className={styles.col}>
                 <ErrorBoundary resetLabel="Dismiss">
-                  {session.module === '1' && <AIReadM1 aiAnalysis={aiAnalysis} />}
-                  {session.module === '3' && <AIReadM3 aiAnalysis={aiAnalysis} />}
+                  <AIRead session={session} />
                 </ErrorBoundary>
               </div>
             </div>
 
-            {/* Outcome — full width */}
-            <OutcomeEditor
-              session={session}
-              onSaved={updated => { onUpdate(updated); }}
-            />
+            <OutcomeEditor session={session} onSaved={updated => onUpdate(updated)} />
 
-            {/* Chat — full width */}
             <ChatPanel
               session={session}
               onHistoryUpdate={chatHistory => onUpdate({ ...session, chatHistory })}
@@ -645,23 +584,19 @@ function SessionDetail({ session, onClose, onUpdate }) {
 // ── Main Journal page ─────────────────────────────────────────────────────────
 
 export default function Journal() {
-  const [sessions, setSessions]   = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState(null);
-  const [selected, setSelected]   = useState(null);
-  const [filters, setFilters]     = useState({ module: '', verdict: '', outcome: '' });
+  const [sessions,  setSessions]  = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [error,     setError]     = useState(null);
+  const [selected,  setSelected]  = useState(null);
+  const [filters,   setFilters]   = useState({ verdict: '', outcome: '' });
 
   useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
-    try {
-      setSessions(await getSessions());
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    try { setSessions(await getSessions()); }
+    catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   }
 
   function handleUpdate(updated) {
@@ -670,9 +605,9 @@ export default function Journal() {
   }
 
   const filtered = sessions.filter(s => {
-    if (filters.module  && s.module    !== filters.module)  return false;
-    if (filters.verdict && s.aiVerdict !== filters.verdict) return false;
-    if (filters.outcome && s.outcome   !== filters.outcome) return false;
+    const verdict = s.aiDecision?.verdict || s.aiVerdict;
+    if (filters.verdict && verdict !== filters.verdict) return false;
+    if (filters.outcome && s.outcome !== filters.outcome) return false;
     return true;
   });
 
@@ -687,18 +622,11 @@ export default function Journal() {
       </div>
 
       <div className={styles.filters}>
-        <select value={filters.module} onChange={e => setFilters(f => ({ ...f, module: e.target.value }))} className={styles.filterSelect}>
-          <option value="">All modules</option>
-          <option value="1">Module 1</option>
-          <option value="2">Module 2</option>
-          <option value="3">Module 3</option>
-        </select>
         <select value={filters.verdict} onChange={e => setFilters(f => ({ ...f, verdict: e.target.value }))} className={styles.filterSelect}>
           <option value="">All verdicts</option>
-          <option value="TRADE">Trade</option>
-          <option value="PASS">Pass</option>
+          <option value="TAKE">Take</option>
+          <option value="SKIP">Skip</option>
           <option value="WATCH">Watch</option>
-          <option value="LEARN">Learn</option>
         </select>
         <select value={filters.outcome} onChange={e => setFilters(f => ({ ...f, outcome: e.target.value }))} className={styles.filterSelect}>
           <option value="">All outcomes</option>
@@ -707,7 +635,7 @@ export default function Journal() {
           <option value="Open">Open</option>
           <option value="Skip">Skip</option>
         </select>
-        <button className="btn btn-ghost" onClick={() => setFilters({ module: '', verdict: '', outcome: '' })}>Clear</button>
+        <button className="btn btn-ghost" onClick={() => setFilters({ verdict: '', outcome: '' })}>Clear</button>
       </div>
 
       {error && <div className={styles.error}>{error}</div>}
@@ -717,7 +645,7 @@ export default function Journal() {
       ) : filtered.length === 0 ? (
         <div className={styles.empty}>
           {sessions.length === 0
-            ? 'No sessions yet. Complete a Module 1 or Module 3 analysis to start your journal.'
+            ? 'No sessions yet. Complete an analysis to start your journal.'
             : 'No sessions match these filters.'}
         </div>
       ) : (
@@ -728,38 +656,46 @@ export default function Journal() {
                 <th>#</th>
                 <th>Date</th>
                 <th>Stock</th>
-                <th>Module</th>
                 <th>Pattern</th>
-                <th>Verdict</th>
+                <th>Decision</th>
+                <th>AI Verdict</th>
                 <th>Outcome</th>
                 <th>P&L</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((s, i) => (
-                <tr key={s.id} className={styles.row} onClick={() => setSelected(s)}>
-                  <td className="mono muted">{filtered.length - i}</td>
-                  <td className="mono">{formatDate(s.createdAt)}</td>
-                  <td className={styles.ticker}>{s.ticker || '—'}</td>
-                  <td><span className="badge badge-muted">{MODULE_SHORT[s.module] ?? s.module}</span></td>
-                  <td className={styles.pattern}>{s.userInput?.candlePattern || '—'}</td>
-                  <td>
-                    {s.aiVerdict
-                      ? <span className={`badge ${VERDICT_CLASS[s.aiVerdict] ?? 'badge-muted'}`}>{s.aiVerdict}</span>
-                      : <span className="muted">—</span>}
-                  </td>
-                  <td>
-                    {s.outcome
-                      ? <span className={`badge ${OUTCOME_CLASS[s.outcome] ?? 'badge-muted'}`}>{s.outcome}</span>
-                      : <span className="muted">—</span>}
-                  </td>
-                  <td className="mono">
-                    {s.pnl != null
-                      ? <span className={s.pnl >= 0 ? 'accent' : 'danger'}>{s.pnl >= 0 ? '+' : ''}₹{s.pnl}</span>
-                      : <span className="muted">—</span>}
-                  </td>
-                </tr>
-              ))}
+              {filtered.map((s, i) => {
+                const pattern = s.formData?.candlePattern || s.userInput?.candlePattern;
+                const aiVerdict = s.aiDecision?.verdict || s.aiVerdict;
+                return (
+                  <tr key={s.id} className={styles.row} onClick={() => setSelected(s)}>
+                    <td className="mono muted">{filtered.length - i}</td>
+                    <td className="mono">{formatDate(s.createdAt)}</td>
+                    <td className={styles.ticker}>{s.ticker || '—'}</td>
+                    <td className={styles.pattern}>{pattern || '—'}</td>
+                    <td>
+                      {s.decision
+                        ? <span className={`badge ${s.decision === 'Take' ? 'badge-green' : s.decision === 'Skip' ? 'badge-red' : 'badge-amber'}`}>{s.decision}</span>
+                        : <span className="muted">—</span>}
+                    </td>
+                    <td>
+                      {aiVerdict
+                        ? <span className={`badge ${VERDICT_CLASS[aiVerdict] ?? 'badge-muted'}`}>{aiVerdict}</span>
+                        : <span className="muted">—</span>}
+                    </td>
+                    <td>
+                      {s.outcome
+                        ? <span className={`badge ${OUTCOME_CLASS[s.outcome] ?? 'badge-muted'}`}>{s.outcome}</span>
+                        : <span className="muted">—</span>}
+                    </td>
+                    <td className="mono">
+                      {s.pnl != null
+                        ? <span className={s.pnl >= 0 ? 'accent' : 'danger'}>{s.pnl >= 0 ? '+' : ''}₹{s.pnl}</span>
+                        : <span className="muted">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
