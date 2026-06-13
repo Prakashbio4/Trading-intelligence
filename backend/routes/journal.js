@@ -48,37 +48,57 @@ router.get('/:id', (req, res) => {
 // POST /journal
 router.post('/', (req, res) => {
   const {
+    // legacy fields (kept for backwards compat with existing module1/3 saves)
     module: moduleId, ticker, timeframe, date, lookbackWindow,
     imagePath, promptVersion, userInput, aiAnnotation, aiAnalysis,
-    learningTags, decision, aiVerdict, entryPrice,
+    learningTags, aiVerdict, entryPrice,
+    // new unified fields
+    formData, chartSource,
+    decision, confidence,
+    plannedEntry, plannedSL, plannedTarget, plannedRRR,
+    aiWhatISee, aiNarrative, aiDecision, aiCorrections,
   } = req.body;
-
-  if (!moduleId || !aiAnalysis) {
-    return res.status(400).json({ error: 'module and aiAnalysis are required' });
-  }
 
   const session = {
     id: uuidv4(),
     createdAt: new Date().toISOString(),
     updatedAt: null,
-    module: moduleId,
-    ticker: ticker || '',
+    module: moduleId || 'unified',
+    ticker: ticker || formData?.ticker || '',
     timeframe: timeframe || '',
-    date: date || new Date().toISOString().split('T')[0],
-    lookbackWindow: lookbackWindow || 3,
+    chartSource: chartSource || formData?.chartSource || '',
+    date: date || formData?.date || new Date().toISOString().split('T')[0],
+    lookbackWindow: lookbackWindow || formData?.lookbackWindow || 3,
     imagePath: imagePath || '',
     promptVersion: promptVersion || '',
-    userInput: userInput || {},
+    // user read — unified sessions store formData, legacy store userInput
+    formData: formData || null,
+    userInput: userInput || null,
+    // ai response — unified sessions use the four-section structure
+    aiWhatISee: aiWhatISee || null,
+    aiNarrative: aiNarrative || null,
+    aiDecision: aiDecision || null,
+    aiCorrections: aiCorrections || [],
+    // legacy ai response fields
     aiAnnotation: aiAnnotation || null,
-    aiAnalysis,
-    learningTags: learningTags || [],
+    aiAnalysis: aiAnalysis || null,
+    // decision
     decision: decision || null,
-    aiVerdict: aiVerdict || null,
-    entryPrice: entryPrice || null,
-    exitPrice: null,
+    confidence: confidence || null,
+    plannedEntry: plannedEntry ?? null,
+    plannedSL: plannedSL ?? null,
+    plannedTarget: plannedTarget ?? null,
+    plannedRRR: plannedRRR ?? null,
+    // outcome (filled later via PATCH)
+    actualEntry: null,
+    actualExit: null,
+    holdingPeriod: null,
+    exitPrice: entryPrice || null,
     pnl: null,
     outcome: null,
     notes: '',
+    learningTags: learningTags || [],
+    aiVerdict: aiVerdict || null,
     chatHistory: [],
   };
 
@@ -94,19 +114,30 @@ router.post('/', (req, res) => {
 
 // PATCH /journal/:id
 router.patch('/:id', (req, res) => {
-  const { outcome, exitPrice, notes } = req.body;
+  const { outcome, exitPrice, notes, actualEntry, actualExit, holdingPeriod } = req.body;
 
   try {
     const sessions = readJournal();
     const idx = sessions.findIndex(s => s.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'Session not found' });
 
-    if (outcome   !== undefined) sessions[idx].outcome = outcome;
-    if (notes     !== undefined) sessions[idx].notes = notes;
-    if (exitPrice !== undefined) {
+    if (outcome        !== undefined) sessions[idx].outcome = outcome;
+    if (notes          !== undefined) sessions[idx].notes = notes;
+    if (actualEntry    !== undefined) sessions[idx].actualEntry = actualEntry;
+    if (holdingPeriod  !== undefined) sessions[idx].holdingPeriod = holdingPeriod;
+
+    if (actualExit !== undefined) {
+      sessions[idx].actualExit = actualExit;
+      sessions[idx].exitPrice  = actualExit;
+      const entry = sessions[idx].actualEntry ?? sessions[idx].plannedEntry;
+      if (entry != null) {
+        sessions[idx].pnl = parseFloat((actualExit - entry).toFixed(2));
+      }
+    } else if (exitPrice !== undefined) {
       sessions[idx].exitPrice = exitPrice;
-      if (sessions[idx].entryPrice != null) {
-        sessions[idx].pnl = parseFloat((exitPrice - sessions[idx].entryPrice).toFixed(2));
+      const entry = sessions[idx].actualEntry ?? sessions[idx].plannedEntry;
+      if (entry != null) {
+        sessions[idx].pnl = parseFloat((exitPrice - entry).toFixed(2));
       }
     }
 
