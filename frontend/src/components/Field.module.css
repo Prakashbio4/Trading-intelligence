@@ -1,0 +1,29 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.req {
+  color: var(--accent);
+}
+
+.hint {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--border);
+  text-transform: none;
+  letter-spacing: 0;
+}
