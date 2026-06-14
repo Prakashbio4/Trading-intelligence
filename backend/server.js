@@ -10,9 +10,11 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:5173',
+  process.env.FRONTEND_URL,
   'http://localhost:5173',
-];
+  'https://trading-intelligence-iezvnxkq4-sipy.vercel.app',
+  'https://app.sipy.in',
+].filter(Boolean);
 
 app.use(cors({
   origin: (origin, cb) => {
