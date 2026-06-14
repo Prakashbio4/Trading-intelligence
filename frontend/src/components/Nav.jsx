@@ -8,7 +8,7 @@ const TABS = [
   { id: 'insights',  label: 'Insights',  sub: null },
 ];
 
-export default function Nav({ active, onNavigate }) {
+export default function Nav({ active, onNavigate, user, onLogout }) {
   return (
     <header className={styles.header}>
       <div className={styles.brand}>
@@ -27,6 +27,12 @@ export default function Nav({ active, onNavigate }) {
           </button>
         ))}
       </nav>
+      {user && (
+        <div className={styles.userArea}>
+          <span className={styles.username}>{user.username}</span>
+          <button className={styles.logoutBtn} onClick={onLogout}>Logout</button>
+        </div>
+      )}
     </header>
   );
 }

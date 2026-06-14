@@ -1,21 +1,15 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 const Anthropic = require('@anthropic-ai/sdk');
+const supabase = require('../lib/supabase');
+const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const storage = multer.diskStorage({
-  destination: path.join(__dirname, '../uploads'),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}${ext}`);
-  },
-});
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
@@ -23,41 +17,47 @@ const upload = multer({
   },
 });
 
-const PROMPT_VERSIONS = {
-  m1: 'm1_v3',
-  m3: 'm3_v3',
-};
-
 const SYSTEM = `You are a technical analysis educator who applies established chart reading principles with practical, real-market judgment.
 
 RULES:
 1. Express confidence as HIGH / MEDIUM / LOW on every individual call.
 2. Never give a buy or sell recommendation. Provide analysis and education only.
-3. Respond with ONLY the JSON structure requested — no prose outside the schema.
+3. Respond with ONLY the JSON structure requested — no prose outside the schema. No markdown. No preamble.
 4. Identify trend using Dow Theory: higher highs/higher lows = uptrend, lower highs/lower lows = downtrend, neither = ranging.
 5. Always comment on whether volume supports or contradicts the pattern.
 6. S&R levels must be grounded in prior swing pivots visible on the chart.
 7. Flag any setup where risk-reward falls below 1:1.5.
+8. Apply methodology silently — never say "per Varsity" or cite chapter numbers. State rules as fact.
+9. "No pattern identified" is always a valid and complete answer. Never force a weak pattern.
+10. The "whereYouWentWrong" array only fires on genuine disagreements. If the user's read is correct, return an empty array. No filler.
+11. Corrections are ranked by trading significance: wrong stop loss > wrong pattern > wrong RSI read.
+12. When deciding TAKE, propose specific price levels with structural reasoning. Do not give round numbers without justification.
 
 CANDLESTICK READING — REAL MARKET APPROACH:
-Textbook-perfect patterns are rare. Assess quality on a spectrum: Clean / Acceptable / Borderline / Weak.
-Never force a pattern that is genuinely absent — "No confirmed pattern identified" is always valid.
-But do not reject a pattern just because it deviates slightly from the ideal.
-
+Textbook-perfect patterns are rare. Assess quality on a spectrum: Textbook clean / Acceptable / Borderline / Weak.
 Practical tolerances:
-- Marubozu: no shadows is ideal, but shadows up to 10–15% of the body length qualify as Acceptable. Note the deviation in reasoning.
-- Hammer / Hanging Man: lower shadow ideally 2x the body. 1.5x is Borderline but still worth noting. Upper shadow should be minimal — up to 30% of body is tolerable.
-- Shooting Star / Inverted Hammer: upper shadow ideally 2x body. Same 1.5x Borderline rule applies.
-- Engulfing patterns: Day 2 body should fully contain Day 1 body. If it covers 90%+ of Day 1 body, call it Borderline Engulfing.
-- Doji: body should be very small relative to total range. Up to 5% of the high-low range is Clean, up to 10% is Acceptable.
-- Morning Star / Evening Star: Day 3 should close at least 50% into Day 1's body. 40–50% is Borderline, below 40% is Weak.
-- Harami: Day 2 body contained within Day 1. If Day 2 body is within 110% of Day 1, call it Borderline.
+- Marubozu: shadows up to 10–15% of body = Acceptable.
+- Hammer / Hanging Man: lower shadow 2x body = ideal, 1.5x = Borderline. Upper shadow up to 30% of body is tolerable.
+- Shooting Star / Inverted Hammer: upper shadow 2x body = ideal, same 1.5x Borderline rule.
+- Engulfing: Day 2 body fully contains Day 1 = ideal. 90%+ coverage = Borderline Engulfing.
+- Doji: body up to 5% of high-low range = Clean, up to 10% = Acceptable.
+- Morning Star / Evening Star: Day 3 closes 50%+ into Day 1 body = ideal, 40–50% = Borderline.
+- Harami: Day 2 body within Day 1. Within 110% = Borderline.
+Always state what the ideal would be and how much the actual pattern deviates.`;
 
-Always state what the ideal would be and how much the actual pattern deviates. This teaches calibration.`;
+async function uploadToSupabase(buffer, mimetype, userId) {
+  const ext = mimetype.split('/')[1] || 'png';
+  const filename = `${userId}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from('chart-images')
+    .upload(filename, buffer, { contentType: mimetype, upsert: false });
+  if (error) throw error;
+  const { data } = supabase.storage.from('chart-images').getPublicUrl(filename);
+  return data.publicUrl;
+}
 
-function imagePayload(filePath, mimetype) {
-  const data = fs.readFileSync(filePath).toString('base64');
-  return { type: 'image', source: { type: 'base64', media_type: mimetype, data } };
+function imagePayloadFromBuffer(buffer, mimetype) {
+  return { type: 'image', source: { type: 'base64', media_type: mimetype, data: buffer.toString('base64') } };
 }
 
 function stripFences(text) {
@@ -73,8 +73,147 @@ function parseOrError(raw, label) {
   }
 }
 
-// ── MODULE 1 ──────────────────────────────────────────────────────────────────
-router.post('/module1', upload.single('chart'), async (req, res) => {
+// ── UNIFIED ANALYSE ───────────────────────────────────────────────────────────
+router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Chart image is required' });
+
+  let formData;
+  try {
+    formData = JSON.parse(req.body.formData);
+  } catch {
+    return res.status(400).json({ error: 'formData must be valid JSON' });
+  }
+
+  const {
+    ticker, date, lookbackWindow, chartSource,
+    primaryTrend, trendDuration, stockPhase, chartStructure, opposingStructure,
+    candlePattern, patternDirection, patternQuality, priorTrendMatch,
+    volumeVsAverage, volumeCharacter, macd, rsiValue, rsiDirection, bollingerBands,
+    nearestSupport, nearestResistance, srConfidence,
+    narrative,
+    decision, confidence,
+    plannedEntry, plannedSL, plannedTarget, plannedRRR,
+  } = formData;
+
+  const userDecisionBlock = decision === 'Take'
+    ? `Decision: TAKE (Confidence: ${confidence})
+Entry: ${plannedEntry}  SL: ${plannedSL}  Target: ${plannedTarget}  RRR: ${plannedRRR}`
+    : `Decision: ${decision?.toUpperCase() || 'NOT SET'} (Confidence: ${confidence})`;
+
+  const prompt = `Analyse the chart image. The user submitted their read BEFORE seeing any AI analysis. Form your own independent view first, then compare.
+
+USER'S READ:
+Ticker: ${ticker}  |  Date: ${date}  |  Lookback: ${lookbackWindow} sessions  |  Source: ${chartSource}
+
+TREND:
+Primary trend: ${primaryTrend}
+Duration: ${trendDuration}
+Stock phase: ${stockPhase || 'Not specified'}
+Chart structure: ${chartStructure}
+Opposing structure: ${opposingStructure || 'None'}
+
+CANDLE PATTERN:
+Pattern: ${candlePattern}
+Direction: ${patternDirection || 'N/A'}
+Quality: ${patternQuality || 'N/A'}
+Prior trend match: ${priorTrendMatch || 'N/A'}
+
+VOLUME & INDICATORS:
+Volume vs average: ${volumeVsAverage}
+Volume character: ${volumeCharacter || 'Not specified'}
+MACD: ${macd}
+RSI value: ${rsiValue || 'Not entered'}
+RSI direction: ${rsiDirection}
+Bollinger bands: ${bollingerBands || 'Not specified'}
+
+S&R LEVELS:
+Support: ${nearestSupport || 'Not entered'}
+Resistance: ${nearestResistance || 'Not entered'}
+S&R confidence: ${srConfidence || 'Not specified'}
+
+NARRATIVE:
+${narrative || 'Not provided'}
+
+${userDecisionBlock}
+
+Respond with ONLY valid JSON matching this exact schema:
+{
+  "whatISee": {
+    "trend": { "direction": "", "basis": "", "duration": "", "confidence": "HIGH|MEDIUM|LOW" },
+    "chartStructure": { "pattern": "", "confirmed": false, "confidence": "HIGH|MEDIUM|LOW" },
+    "candlePattern": { "name": "", "direction": "", "quality": "", "priorTrendMatch": false, "reasoning": "", "confidence": "HIGH|MEDIUM|LOW" },
+    "volume": { "vsAverage": "", "character": "", "supportsTrade": false, "note": "", "confidence": "HIGH|MEDIUM|LOW" },
+    "macd": { "status": "", "confidence": "HIGH|MEDIUM|LOW" },
+    "rsi": { "value": null, "direction": "", "confidence": "HIGH|MEDIUM|LOW" },
+    "bollingerBands": { "status": "", "confidence": "HIGH|MEDIUM|LOW" },
+    "keyLevels": { "support": [], "resistance": [] }
+  },
+  "narrativeIRead": {
+    "aiNarrative": "",
+    "agreementWithUser": "",
+    "divergences": ""
+  },
+  "myDecision": {
+    "verdict": "TAKE|SKIP|WATCH",
+    "reasoning": "",
+    "entry": null,
+    "stopLoss": null,
+    "target": null,
+    "rrr": null,
+    "entryReasoning": "",
+    "slReasoning": "",
+    "targetReasoning": "",
+    "userLevelComparison": ""
+  },
+  "whereYouWentWrong": [
+    { "rank": 1, "field": "", "correction": "" }
+  ]
+}
+
+IMPORTANT:
+- whereYouWentWrong must be an empty array [] if there are no genuine errors in the user's read.
+- myDecision.entry / stopLoss / target / rrr are null if verdict is SKIP or WATCH.
+- userLevelComparison is empty string if verdict is not TAKE or if user did not submit levels.`;
+
+  try {
+    let imagePath;
+    try {
+      imagePath = await uploadToSupabase(req.file.buffer, req.file.mimetype, req.user.userId);
+    } catch (uploadErr) {
+      console.error('Supabase upload failed:', uploadErr.message);
+      imagePath = '';
+    }
+
+    const message = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      system: SYSTEM,
+      messages: [{
+        role: 'user',
+        content: [
+          imagePayloadFromBuffer(req.file.buffer, req.file.mimetype),
+          { type: 'text', text: prompt },
+        ],
+      }],
+    });
+
+    const raw = stripFences(message.content[0].text);
+    const { ok, data, message: parseMsg } = parseOrError(raw, 'Analyse');
+    if (!ok) return res.status(502).json({ error: 'AI returned malformed JSON', detail: parseMsg });
+
+    res.json({
+      analysis: data,
+      imagePath,
+      promptVersion: 'unified_v1',
+    });
+  } catch (err) {
+    console.error('Analyse error:', err.message);
+    res.status(502).json({ error: 'AI analysis failed', detail: err.message });
+  }
+});
+
+// ── MODULE 1 (legacy) ────────────────────────────────────────────────────────
+router.post('/module1', authMiddleware, upload.single('chart'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Chart image is required' });
 
   let userRead;
@@ -163,6 +302,14 @@ Respond with ONLY valid JSON matching this schema:
 }`;
 
   try {
+    let imagePath;
+    try {
+      imagePath = await uploadToSupabase(req.file.buffer, req.file.mimetype, req.user.userId);
+    } catch (uploadErr) {
+      console.error('Supabase upload failed:', uploadErr.message);
+      imagePath = '';
+    }
+
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
@@ -170,7 +317,7 @@ Respond with ONLY valid JSON matching this schema:
       messages: [{
         role: 'user',
         content: [
-          imagePayload(req.file.path, req.file.mimetype),
+          imagePayloadFromBuffer(req.file.buffer, req.file.mimetype),
           { type: 'text', text: prompt },
         ],
       }],
@@ -180,15 +327,15 @@ Respond with ONLY valid JSON matching this schema:
     const { ok, data, message: parseMsg } = parseOrError(raw, 'Module 1');
     if (!ok) return res.status(502).json({ error: 'AI returned malformed JSON', detail: parseMsg });
 
-    res.json({ analysis: data, imagePath: `/uploads/${req.file.filename}`, promptVersion: PROMPT_VERSIONS.m1 });
+    res.json({ analysis: data, imagePath, promptVersion: 'm1_v3' });
   } catch (err) {
     console.error('Module 1 error:', err.message);
     res.status(502).json({ error: 'AI analysis failed', detail: err.message });
   }
 });
 
-// ── MODULE 3 ──────────────────────────────────────────────────────────────────
-router.post('/module3', upload.single('chart'), async (req, res) => {
+// ── MODULE 3 (legacy) ────────────────────────────────────────────────────────
+router.post('/module3', authMiddleware, upload.single('chart'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Chart image is required' });
 
   let userAnalysis;
@@ -233,6 +380,14 @@ Respond with ONLY valid JSON matching this schema:
 }`;
 
   try {
+    let imagePath;
+    try {
+      imagePath = await uploadToSupabase(req.file.buffer, req.file.mimetype, req.user.userId);
+    } catch (uploadErr) {
+      console.error('Supabase upload failed:', uploadErr.message);
+      imagePath = '';
+    }
+
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
@@ -240,7 +395,7 @@ Respond with ONLY valid JSON matching this schema:
       messages: [{
         role: 'user',
         content: [
-          imagePayload(req.file.path, req.file.mimetype),
+          imagePayloadFromBuffer(req.file.buffer, req.file.mimetype),
           { type: 'text', text: prompt },
         ],
       }],
@@ -250,7 +405,7 @@ Respond with ONLY valid JSON matching this schema:
     const { ok, data, message: parseMsg } = parseOrError(raw, 'Module 3');
     if (!ok) return res.status(502).json({ error: 'AI returned malformed JSON', detail: parseMsg });
 
-    res.json({ analysis: data, imagePath: `/uploads/${req.file.filename}`, promptVersion: PROMPT_VERSIONS.m3 });
+    res.json({ analysis: data, imagePath, promptVersion: 'm3_v3' });
   } catch (err) {
     console.error('Module 3 error:', err.message);
     res.status(502).json({ error: 'AI analysis failed', detail: err.message });

@@ -1,206 +1,444 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
 const Anthropic = require('@anthropic-ai/sdk');
+const supabase = require('../lib/supabase');
+const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
-const JOURNAL_PATH = path.join(__dirname, '../data/journal.json');
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-function readJournal() {
-  return JSON.parse(fs.readFileSync(JOURNAL_PATH, 'utf8'));
+// ── Conversion helpers ────────────────────────────────────────────────────────
+
+function toDb(s) {
+  return {
+    module: s.module,
+    ticker: s.ticker,
+    timeframe: s.timeframe,
+    chart_source: s.chartSource,
+    date: s.date,
+    lookback_window: s.lookbackWindow,
+    image_path: s.imagePath,
+    prompt_version: s.promptVersion,
+    form_data: s.formData,
+    user_input: s.userInput,
+    ai_what_i_see: s.aiWhatISee,
+    ai_narrative: s.aiNarrative,
+    ai_decision: s.aiDecision,
+    ai_corrections: s.aiCorrections,
+    ai_annotation: s.aiAnnotation,
+    ai_analysis: s.aiAnalysis,
+    decision: s.decision,
+    confidence: s.confidence,
+    planned_entry: s.plannedEntry,
+    planned_sl: s.plannedSL,
+    planned_target: s.plannedTarget,
+    planned_rrr: s.plannedRRR,
+    actual_entry: s.actualEntry,
+    actual_exit: s.actualExit,
+    holding_period: s.holdingPeriod,
+    exit_price: s.exitPrice,
+    pnl: s.pnl,
+    outcome: s.outcome,
+    notes: s.notes,
+    learning_tags: s.learningTags,
+    ai_verdict: s.aiVerdict,
+    chat_history: s.chatHistory,
+    user_id: s.userId,
+  };
 }
 
-function writeJournal(data) {
-  fs.writeFileSync(JOURNAL_PATH, JSON.stringify(data, null, 2), 'utf8');
+function fromDb(row) {
+  return {
+    id: row.id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    module: row.module,
+    ticker: row.ticker,
+    timeframe: row.timeframe,
+    chartSource: row.chart_source,
+    date: row.date,
+    lookbackWindow: row.lookback_window,
+    imagePath: row.image_path,
+    promptVersion: row.prompt_version,
+    formData: row.form_data,
+    userInput: row.user_input,
+    aiWhatISee: row.ai_what_i_see,
+    aiNarrative: row.ai_narrative,
+    aiDecision: row.ai_decision,
+    aiCorrections: row.ai_corrections,
+    aiAnnotation: row.ai_annotation,
+    aiAnalysis: row.ai_analysis,
+    decision: row.decision,
+    confidence: row.confidence,
+    plannedEntry: row.planned_entry,
+    plannedSL: row.planned_sl,
+    plannedTarget: row.planned_target,
+    plannedRRR: row.planned_rrr,
+    actualEntry: row.actual_entry,
+    actualExit: row.actual_exit,
+    holdingPeriod: row.holding_period,
+    exitPrice: row.exit_price,
+    pnl: row.pnl,
+    outcome: row.outcome,
+    notes: row.notes,
+    learningTags: row.learning_tags,
+    aiVerdict: row.ai_verdict,
+    chatHistory: row.chat_history,
+    userId: row.user_id,
+  };
 }
+
+// ── Routes ────────────────────────────────────────────────────────────────────
 
 // GET /journal
-router.get('/', (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
-    let sessions = readJournal();
     const { module: mod, verdict, outcome, pattern } = req.query;
-    if (mod)     sessions = sessions.filter(s => s.module === mod);
+    const isSuperuser = req.user.role === 'superuser';
+
+    let query = supabase
+      .from('journal_sessions')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!isSuperuser) query = query.eq('user_id', req.user.userId);
+    if (mod) query = query.eq('module', mod);
+    if (outcome) query = query.eq('outcome', outcome);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    let sessions = data.map(fromDb);
+
     if (verdict) sessions = sessions.filter(s => s.aiVerdict === verdict);
-    if (outcome) sessions = sessions.filter(s => s.outcome === outcome);
     if (pattern) sessions = sessions.filter(s =>
       s.userInput?.candlePattern?.toLowerCase().includes(pattern.toLowerCase())
     );
-    res.json(sessions.slice().reverse());
+
+    res.json(sessions);
   } catch (err) {
     res.status(500).json({ error: 'Could not read journal', detail: err.message });
+  }
+});
+
+// GET /journal/insights-context
+router.get('/insights-context', authMiddleware, async (req, res) => {
+  try {
+    const isSuperuser = req.user.role === 'superuser';
+
+    let query = supabase
+      .from('journal_sessions')
+      .select('decision, ai_decision, ai_verdict, user_input, form_data');
+
+    if (!isSuperuser) query = query.eq('user_id', req.user.userId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const sessions = data.map(fromDb);
+    const total = sessions.length;
+
+    const verdictCounts = { Take: 0, Skip: 0, Watch: 0 };
+    const patternCounts = {};
+    const aiVerdictCounts = { TAKE: 0, SKIP: 0, WATCH: 0 };
+
+    for (const s of sessions) {
+      if (s.decision) verdictCounts[s.decision] = (verdictCounts[s.decision] || 0) + 1;
+      const pattern = s.userInput?.candlePattern || s.formData?.candlePattern;
+      if (pattern && pattern !== 'No pattern identified') {
+        patternCounts[pattern] = (patternCounts[pattern] || 0) + 1;
+      }
+      const aiVerdict = s.aiDecision?.verdict || s.aiVerdict;
+      if (aiVerdict) aiVerdictCounts[aiVerdict] = (aiVerdictCounts[aiVerdict] || 0) + 1;
+    }
+
+    const topPatterns = Object.entries(patternCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }));
+
+    res.json({ total, verdictCounts, aiVerdictCounts, topPatterns });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not build insights context', detail: err.message });
   }
 });
 
 // GET /journal/:id
-router.get('/:id', (req, res) => {
+router.get('/:id', authMiddleware, async (req, res) => {
   try {
-    const sessions = readJournal();
-    const session = sessions.find(s => s.id === req.params.id);
-    if (!session) return res.status(404).json({ error: 'Session not found' });
+    const { data, error } = await supabase
+      .from('journal_sessions')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Session not found' });
+
+    const session = fromDb(data);
+
+    // Non-superusers can only access their own sessions
+    if (req.user.role !== 'superuser' && session.userId !== req.user.userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     res.json(session);
   } catch (err) {
-    res.status(500).json({ error: 'Could not read journal', detail: err.message });
+    res.status(500).json({ error: 'Could not read session', detail: err.message });
   }
 });
 
 // POST /journal
-router.post('/', (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   const {
     module: moduleId, ticker, timeframe, date, lookbackWindow,
     imagePath, promptVersion, userInput, aiAnnotation, aiAnalysis,
-    learningTags, decision, aiVerdict, entryPrice,
+    learningTags, aiVerdict, entryPrice,
+    formData, chartSource,
+    decision, confidence,
+    plannedEntry, plannedSL, plannedTarget, plannedRRR,
+    aiWhatISee, aiNarrative, aiDecision, aiCorrections,
   } = req.body;
 
-  if (!moduleId || !aiAnalysis) {
-    return res.status(400).json({ error: 'module and aiAnalysis are required' });
-  }
-
-  const session = {
-    id: uuidv4(),
-    createdAt: new Date().toISOString(),
-    updatedAt: null,
-    module: moduleId,
-    ticker: ticker || '',
+  const record = toDb({
+    module: moduleId || 'unified',
+    ticker: ticker || formData?.ticker || '',
     timeframe: timeframe || '',
-    date: date || new Date().toISOString().split('T')[0],
-    lookbackWindow: lookbackWindow || 3,
+    chartSource: chartSource || formData?.chartSource || '',
+    date: date || formData?.date || new Date().toISOString().split('T')[0],
+    lookbackWindow: lookbackWindow || formData?.lookbackWindow || 3,
     imagePath: imagePath || '',
     promptVersion: promptVersion || '',
-    userInput: userInput || {},
+    formData: formData || null,
+    userInput: userInput || null,
+    aiWhatISee: aiWhatISee || null,
+    aiNarrative: aiNarrative || null,
+    aiDecision: aiDecision || null,
+    aiCorrections: aiCorrections || [],
     aiAnnotation: aiAnnotation || null,
-    aiAnalysis,
-    learningTags: learningTags || [],
+    aiAnalysis: aiAnalysis || null,
     decision: decision || null,
-    aiVerdict: aiVerdict || null,
-    entryPrice: entryPrice || null,
-    exitPrice: null,
+    confidence: confidence || null,
+    plannedEntry: plannedEntry ?? null,
+    plannedSL: plannedSL ?? null,
+    plannedTarget: plannedTarget ?? null,
+    plannedRRR: plannedRRR ?? null,
+    actualEntry: null,
+    actualExit: null,
+    holdingPeriod: null,
+    exitPrice: entryPrice || null,
     pnl: null,
     outcome: null,
     notes: '',
+    learningTags: learningTags || [],
+    aiVerdict: aiVerdict || null,
     chatHistory: [],
-  };
+    userId: req.user.userId,
+  });
 
   try {
-    const sessions = readJournal();
-    sessions.push(session);
-    writeJournal(sessions);
-    res.status(201).json(session);
+    const { data, error } = await supabase
+      .from('journal_sessions')
+      .insert(record)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    res.status(201).json(fromDb(data));
   } catch (err) {
     res.status(500).json({ error: 'Could not save session', detail: err.message });
   }
 });
 
 // PATCH /journal/:id
-router.patch('/:id', (req, res) => {
-  const { outcome, exitPrice, notes } = req.body;
+router.patch('/:id', authMiddleware, async (req, res) => {
+  const { outcome, exitPrice, notes, actualEntry, actualExit, holdingPeriod } = req.body;
 
   try {
-    const sessions = readJournal();
-    const idx = sessions.findIndex(s => s.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'Session not found' });
+    // Fetch existing to verify ownership and compute pnl
+    const { data: existing, error: fetchErr } = await supabase
+      .from('journal_sessions')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
 
-    if (outcome   !== undefined) sessions[idx].outcome = outcome;
-    if (notes     !== undefined) sessions[idx].notes = notes;
-    if (exitPrice !== undefined) {
-      sessions[idx].exitPrice = exitPrice;
-      if (sessions[idx].entryPrice != null) {
-        sessions[idx].pnl = parseFloat((exitPrice - sessions[idx].entryPrice).toFixed(2));
-      }
+    if (fetchErr) throw fetchErr;
+    if (!existing) return res.status(404).json({ error: 'Session not found' });
+
+    const session = fromDb(existing);
+    if (req.user.role !== 'superuser' && session.userId !== req.user.userId) {
+      return res.status(403).json({ error: 'Forbidden' });
     }
 
-    sessions[idx].updatedAt = new Date().toISOString();
-    writeJournal(sessions);
-    res.json(sessions[idx]);
+    const patch = { updated_at: new Date().toISOString() };
+    if (outcome       !== undefined) patch.outcome = outcome;
+    if (notes         !== undefined) patch.notes = notes;
+    if (actualEntry   !== undefined) patch.actual_entry = actualEntry;
+    if (holdingPeriod !== undefined) patch.holding_period = holdingPeriod;
+
+    if (actualExit !== undefined) {
+      patch.actual_exit = actualExit;
+      patch.exit_price  = actualExit;
+      const entry = actualEntry ?? session.actualEntry ?? session.plannedEntry;
+      if (entry != null) patch.pnl = parseFloat((actualExit - entry).toFixed(2));
+    } else if (exitPrice !== undefined) {
+      patch.exit_price = exitPrice;
+      const entry = session.actualEntry ?? session.plannedEntry;
+      if (entry != null) patch.pnl = parseFloat((exitPrice - entry).toFixed(2));
+    }
+
+    const { data, error } = await supabase
+      .from('journal_sessions')
+      .update(patch)
+      .eq('id', req.params.id)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    res.json(fromDb(data));
   } catch (err) {
     res.status(500).json({ error: 'Could not update session', detail: err.message });
   }
 });
 
-// POST /journal/:id/chat — follow-up conversation about a specific session
-router.post('/:id/chat', async (req, res) => {
-  const { message } = req.body;
+// POST /journal/insights-chat
+router.post('/insights-chat', authMiddleware, async (req, res) => {
+  const { message, context, history = [] } = req.body;
   if (!message?.trim()) return res.status(400).json({ error: 'message is required' });
 
-  let sessions, idx, session;
-  try {
-    sessions = readJournal();
-    idx = sessions.findIndex(s => s.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'Session not found' });
-    session = sessions[idx];
-  } catch (err) {
-    return res.status(500).json({ error: 'Could not load session', detail: err.message });
-  }
+  const { total = 0, verdictCounts = {}, aiVerdictCounts = {}, topPatterns = [] } = context || {};
 
-  // Build prior conversation turns for the API
-  const history = (session.chatHistory ?? []).map(m => ({
-    role: m.role,
-    content: m.content,
-  }));
+  const systemPrompt = `You are a technical analysis coach reviewing a student's complete trading journal.
 
-  // Load the chart image if it exists
-  const imageContent = [];
-  if (session.imagePath) {
-    const absPath = path.join(__dirname, '..', session.imagePath);
-    if (fs.existsSync(absPath)) {
-      const ext = path.extname(absPath).slice(1).toLowerCase();
-      const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
-      const data = fs.readFileSync(absPath).toString('base64');
-      imageContent.push({ type: 'image', source: { type: 'base64', media_type: mime, data } });
-    }
-  }
+JOURNAL SUMMARY:
+Total sessions: ${total}
+User decisions: ${JSON.stringify(verdictCounts)}
+AI verdicts: ${JSON.stringify(aiVerdictCounts)}
+Top patterns identified: ${topPatterns.map(p => `${p.name} (${p.count}x)`).join(', ') || 'none yet'}
 
-  const systemPrompt = `You are a technical analysis educator reviewing a chart with a student.
+Answer questions about the student's learning patterns, common errors, and areas of strength.
+Be specific and actionable. Do not give buy/sell recommendations.
+If there are fewer than 5 sessions, note that the sample is too small for reliable patterns.`;
 
-The student previously analysed this chart and received an AI analysis. The full context of that session is below.
-Answer the student's follow-up questions about this specific chart and analysis. Be specific — reference visible price levels, candle shapes, indicator readings, and anything else you can see in the chart image.
-Explain your reasoning clearly so the student understands the "why", not just the "what".
-Do not give buy or sell recommendations. Keep answers focused and educational.
-
-SESSION CONTEXT:
-Ticker: ${session.ticker}
-Date: ${session.date}
-Module: ${session.module === '1' ? 'Chart Eye Training' : session.module === '3' ? 'Trade Validator' : 'Narrative Builder'}
-
-User's read:
-${JSON.stringify(session.userInput, null, 2)}
-
-AI analysis:
-${JSON.stringify(session.aiAnalysis, null, 2)}`;
-
-  // First message includes the chart image + context; subsequent turns are text only
-  const isFirstMessage = history.length === 0;
-
-  const newUserContent = isFirstMessage
-    ? [...imageContent, { type: 'text', text: message }]
-    : message;
+  const apiMessages = [
+    ...history.map(m => ({ role: m.role, content: m.content })),
+    { role: 'user', content: message },
+  ];
 
   try {
-    const apiMessages = [
-      ...history,
-      { role: 'user', content: newUserContent },
-    ];
-
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: systemPrompt,
       messages: apiMessages,
     });
+    res.json({ reply: response.content[0].text });
+  } catch (err) {
+    res.status(502).json({ error: 'Chat failed', detail: err.message });
+  }
+});
+
+// POST /journal/:id/chat
+router.post('/:id/chat', authMiddleware, async (req, res) => {
+  const { message } = req.body;
+  if (!message?.trim()) return res.status(400).json({ error: 'message is required' });
+
+  let session;
+  try {
+    const { data, error } = await supabase
+      .from('journal_sessions')
+      .select('*')
+      .eq('id', req.params.id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Session not found' });
+
+    session = fromDb(data);
+
+    if (req.user.role !== 'superuser' && session.userId !== req.user.userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: 'Could not load session', detail: err.message });
+  }
+
+  const history = (session.chatHistory ?? []).map(m => ({ role: m.role, content: m.content }));
+
+  // Load chart image from URL (Supabase Storage public URL)
+  const imageContent = [];
+  if (session.imagePath && session.imagePath.startsWith('http')) {
+    try {
+      const resp = await fetch(session.imagePath);
+      if (resp.ok) {
+        const buffer = await resp.arrayBuffer();
+        const contentType = resp.headers.get('content-type') || 'image/png';
+        const data = Buffer.from(buffer).toString('base64');
+        imageContent.push({ type: 'image', source: { type: 'base64', media_type: contentType, data } });
+      }
+    } catch { /* skip if image unavailable */ }
+  }
+
+  const aiContext = session.aiWhatISee
+    ? [
+        `WHAT I SEE:\n${JSON.stringify(session.aiWhatISee, null, 2)}`,
+        `NARRATIVE I READ:\n${JSON.stringify(session.aiNarrative, null, 2)}`,
+        `MY DECISION:\n${JSON.stringify(session.aiDecision, null, 2)}`,
+        session.aiCorrections?.length
+          ? `WHERE YOU WENT WRONG:\n${JSON.stringify(session.aiCorrections, null, 2)}`
+          : 'WHERE YOU WENT WRONG: none — your read was correct.',
+      ].join('\n\n')
+    : `AI analysis:\n${JSON.stringify(session.aiAnalysis, null, 2)}`;
+
+  const userContext = session.formData
+    ? JSON.stringify(session.formData, null, 2)
+    : JSON.stringify(session.userInput, null, 2);
+
+  const systemPrompt = `You are a technical analysis educator reviewing a chart with a student.
+
+You already analysed this chart and gave the student the verdict below. The student is now asking follow-up questions about YOUR analysis.
+When answering, refer back to what you said — your own trend read, your candle pattern call, your decision, your levels. Own your analysis.
+Be specific — reference visible price levels, candle shapes, indicator readings, and anything else you can see in the chart image.
+Explain your reasoning clearly so the student understands the "why", not just the "what".
+Do not give buy or sell recommendations. Keep answers focused and educational.
+
+SESSION CONTEXT:
+Ticker: ${session.ticker}
+Date: ${session.date}
+
+USER'S READ:
+${userContext}
+
+YOUR PRIOR ANALYSIS:
+${aiContext}`;
+
+  const isFirstMessage = history.length === 0;
+  const newUserContent = isFirstMessage
+    ? [...imageContent, { type: 'text', text: message }]
+    : message;
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [...history, { role: 'user', content: newUserContent }],
+    });
 
     const reply = response.content[0].text;
+    const now = new Date().toISOString();
+    const userTurn      = { role: 'user',      content: message, timestamp: now };
+    const assistantTurn = { role: 'assistant',  content: reply,   timestamp: now };
 
-    // Save both turns to chatHistory
-    const userTurn      = { role: 'user',      content: message, timestamp: new Date().toISOString() };
-    const assistantTurn = { role: 'assistant',  content: reply,   timestamp: new Date().toISOString() };
+    const newHistory = [...(session.chatHistory ?? []), userTurn, assistantTurn];
 
-    if (!sessions[idx].chatHistory) sessions[idx].chatHistory = [];
-    sessions[idx].chatHistory.push(userTurn, assistantTurn);
-    sessions[idx].updatedAt = new Date().toISOString();
-    writeJournal(sessions);
+    const { error: updateErr } = await supabase
+      .from('journal_sessions')
+      .update({ chat_history: newHistory, updated_at: now })
+      .eq('id', req.params.id);
 
-    res.json({ reply, chatHistory: sessions[idx].chatHistory });
+    if (updateErr) console.error('Failed to save chat history:', updateErr.message);
+
+    res.json({ reply, chatHistory: newHistory });
   } catch (err) {
     console.error('Chat error:', err.message);
     res.status(502).json({ error: 'Chat failed', detail: err.message });
