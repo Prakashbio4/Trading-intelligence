@@ -1,12 +1,14 @@
 import styles from './Nav.module.css';
 
 const TABS = [
-  { id: 'analyse',  label: 'Analyse',  sub: null },
-  { id: 'journal',  label: 'Journal',  sub: null },
-  { id: 'insights', label: 'Insights', sub: null },
+  { id: 'learn',     label: 'Learn',     sub: 'Module 1' },
+  { id: 'narrative', label: 'Narrative', sub: 'Module 2' },
+  { id: 'validate',  label: 'Validate',  sub: 'Module 3' },
+  { id: 'journal',   label: 'Journal',   sub: null },
+  { id: 'insights',  label: 'Insights',  sub: null },
 ];
 
-export default function Nav({ active, onNavigate }) {
+export default function Nav({ active, onNavigate, user, onLogout }) {
   return (
     <header className={styles.header}>
       <div className={styles.brand}>
@@ -25,6 +27,12 @@ export default function Nav({ active, onNavigate }) {
           </button>
         ))}
       </nav>
+      {user && (
+        <div className={styles.userArea}>
+          <span className={styles.username}>{user.username}</span>
+          <button className={styles.logoutBtn} onClick={onLogout}>Logout</button>
+        </div>
+      )}
     </header>
   );
 }

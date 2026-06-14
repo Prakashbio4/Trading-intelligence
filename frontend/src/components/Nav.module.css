@@ -74,3 +74,33 @@
   color: inherit;
   opacity: 0.6;
 }
+
+.userArea {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.username {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.logoutBtn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 10px;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.logoutBtn:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}

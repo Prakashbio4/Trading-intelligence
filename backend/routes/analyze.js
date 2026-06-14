@@ -1,21 +1,15 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 const Anthropic = require('@anthropic-ai/sdk');
+const supabase = require('../lib/supabase');
+const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const storage = multer.diskStorage({
-  destination: path.join(__dirname, '../uploads'),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}${ext}`);
-  },
-});
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
@@ -51,9 +45,19 @@ Practical tolerances:
 - Harami: Day 2 body within Day 1. Within 110% = Borderline.
 Always state what the ideal would be and how much the actual pattern deviates.`;
 
-function imagePayload(filePath, mimetype) {
-  const data = fs.readFileSync(filePath).toString('base64');
-  return { type: 'image', source: { type: 'base64', media_type: mimetype, data } };
+async function uploadToSupabase(buffer, mimetype, userId) {
+  const ext = mimetype.split('/')[1] || 'png';
+  const filename = `${userId}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from('chart-images')
+    .upload(filename, buffer, { contentType: mimetype, upsert: false });
+  if (error) throw error;
+  const { data } = supabase.storage.from('chart-images').getPublicUrl(filename);
+  return data.publicUrl;
+}
+
+function imagePayloadFromBuffer(buffer, mimetype) {
+  return { type: 'image', source: { type: 'base64', media_type: mimetype, data: buffer.toString('base64') } };
 }
 
 function stripFences(text) {
@@ -70,7 +74,7 @@ function parseOrError(raw, label) {
 }
 
 // ── UNIFIED ANALYSE ───────────────────────────────────────────────────────────
-router.post('/', upload.single('chart'), async (req, res) => {
+router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Chart image is required' });
 
   let formData;
@@ -172,6 +176,14 @@ IMPORTANT:
 - userLevelComparison is empty string if verdict is not TAKE or if user did not submit levels.`;
 
   try {
+    let imagePath;
+    try {
+      imagePath = await uploadToSupabase(req.file.buffer, req.file.mimetype, req.user.userId);
+    } catch (uploadErr) {
+      console.error('Supabase upload failed:', uploadErr.message);
+      imagePath = '';
+    }
+
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
@@ -179,7 +191,7 @@ IMPORTANT:
       messages: [{
         role: 'user',
         content: [
-          imagePayload(req.file.path, req.file.mimetype),
+          imagePayloadFromBuffer(req.file.buffer, req.file.mimetype),
           { type: 'text', text: prompt },
         ],
       }],
@@ -191,7 +203,7 @@ IMPORTANT:
 
     res.json({
       analysis: data,
-      imagePath: `uploads/${req.file.filename}`,
+      imagePath,
       promptVersion: 'unified_v1',
     });
   } catch (err) {
@@ -200,8 +212,8 @@ IMPORTANT:
   }
 });
 
-// ── MODULE 1 (legacy — kept until Task 10 cleanup) ────────────────────────────
-router.post('/module1', upload.single('chart'), async (req, res) => {
+// ── MODULE 1 (legacy) ────────────────────────────────────────────────────────
+router.post('/module1', authMiddleware, upload.single('chart'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Chart image is required' });
 
   let userRead;
@@ -290,6 +302,14 @@ Respond with ONLY valid JSON matching this schema:
 }`;
 
   try {
+    let imagePath;
+    try {
+      imagePath = await uploadToSupabase(req.file.buffer, req.file.mimetype, req.user.userId);
+    } catch (uploadErr) {
+      console.error('Supabase upload failed:', uploadErr.message);
+      imagePath = '';
+    }
+
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
@@ -297,7 +317,7 @@ Respond with ONLY valid JSON matching this schema:
       messages: [{
         role: 'user',
         content: [
-          imagePayload(req.file.path, req.file.mimetype),
+          imagePayloadFromBuffer(req.file.buffer, req.file.mimetype),
           { type: 'text', text: prompt },
         ],
       }],
@@ -307,15 +327,15 @@ Respond with ONLY valid JSON matching this schema:
     const { ok, data, message: parseMsg } = parseOrError(raw, 'Module 1');
     if (!ok) return res.status(502).json({ error: 'AI returned malformed JSON', detail: parseMsg });
 
-    res.json({ analysis: data, imagePath: `/uploads/${req.file.filename}`, promptVersion: 'm1_v3' });
+    res.json({ analysis: data, imagePath, promptVersion: 'm1_v3' });
   } catch (err) {
     console.error('Module 1 error:', err.message);
     res.status(502).json({ error: 'AI analysis failed', detail: err.message });
   }
 });
 
-// ── MODULE 3 (legacy — kept until Task 10 cleanup) ────────────────────────────
-router.post('/module3', upload.single('chart'), async (req, res) => {
+// ── MODULE 3 (legacy) ────────────────────────────────────────────────────────
+router.post('/module3', authMiddleware, upload.single('chart'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Chart image is required' });
 
   let userAnalysis;
@@ -360,6 +380,14 @@ Respond with ONLY valid JSON matching this schema:
 }`;
 
   try {
+    let imagePath;
+    try {
+      imagePath = await uploadToSupabase(req.file.buffer, req.file.mimetype, req.user.userId);
+    } catch (uploadErr) {
+      console.error('Supabase upload failed:', uploadErr.message);
+      imagePath = '';
+    }
+
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
@@ -367,7 +395,7 @@ Respond with ONLY valid JSON matching this schema:
       messages: [{
         role: 'user',
         content: [
-          imagePayload(req.file.path, req.file.mimetype),
+          imagePayloadFromBuffer(req.file.buffer, req.file.mimetype),
           { type: 'text', text: prompt },
         ],
       }],
@@ -377,7 +405,7 @@ Respond with ONLY valid JSON matching this schema:
     const { ok, data, message: parseMsg } = parseOrError(raw, 'Module 3');
     if (!ok) return res.status(502).json({ error: 'AI returned malformed JSON', detail: parseMsg });
 
-    res.json({ analysis: data, imagePath: `/uploads/${req.file.filename}`, promptVersion: 'm3_v3' });
+    res.json({ analysis: data, imagePath, promptVersion: 'm3_v3' });
   } catch (err) {
     console.error('Module 3 error:', err.message);
     res.status(502).json({ error: 'AI analysis failed', detail: err.message });
