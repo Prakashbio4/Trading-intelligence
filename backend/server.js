@@ -9,18 +9,17 @@ const authRouter    = require('./routes/auth');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:5173',
-  'https://trading-intelligence-iezvnxkq4-sipy.vercel.app',
-  'https://app.sipy.in',
-].filter(Boolean);
-
 app.use(cors({
   origin: (origin, cb) => {
-    // Allow requests with no origin (curl, Postman) or matching origins
-    if (!origin || allowedOrigins.includes(origin)) cb(null, true);
-    else cb(new Error('Not allowed by CORS'));
+    if (!origin) return cb(null, true);
+    // Allow localhost, any vercel.app subdomain, and sipy.in
+    if (
+      origin.startsWith('http://localhost') ||
+      origin.endsWith('.vercel.app') ||
+      origin.endsWith('.sipy.in') ||
+      origin === 'https://sipy.in'
+    ) return cb(null, true);
+    cb(new Error('Not allowed by CORS'));
   },
 }));
 app.use(express.json({ limit: '10mb' }));
