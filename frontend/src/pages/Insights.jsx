@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import ChatPanel from '../components/ChatPanel.jsx';
 import styles from './Insights.module.css';
 
-const BASE = 'http://localhost:3001';
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const UNLOCK_AT = 20;
 
 const PLACEHOLDER_CARDS = [
