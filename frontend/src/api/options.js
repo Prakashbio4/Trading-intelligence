@@ -54,16 +54,16 @@ export const PATTERN_CANDLECOUNT = {
 };
 
 export const PATTERN_ROLES = {
-  'Bullish Engulfing':  ['Prior candle', 'Engulfing candle'],
-  'Bearish Engulfing':  ['Prior candle', 'Engulfing candle'],
-  'Piercing Line':      ['Bearish candle', 'Piercing candle'],
-  'Dark Cloud Cover':   ['Bullish candle', 'Dark cloud candle'],
-  'Bullish Harami':     ['Mother candle', 'Baby candle'],
-  'Bearish Harami':     ['Mother candle', 'Baby candle'],
-  'Morning Star':       ['Signal', 'Indecision', 'Confirmation'],
-  'Evening Star':       ['Signal', 'Indecision', 'Reversal'],
-  'Morning Doji Star':  ['Signal', 'Doji', 'Confirmation'],
-  'Evening Doji Star':  ['Signal', 'Doji', 'Reversal'],
+  'Bullish Engulfing':  ['Prior candle', 'Engulfing candle (today)'],
+  'Bearish Engulfing':  ['Prior candle', 'Engulfing candle (today)'],
+  'Piercing Line':      ['Bearish candle', 'Piercing candle (today)'],
+  'Dark Cloud Cover':   ['Bullish candle', 'Dark cloud candle (today)'],
+  'Bullish Harami':     ['Mother candle', 'Baby candle (today)'],
+  'Bearish Harami':     ['Mother candle', 'Baby candle (today)'],
+  'Morning Star':       ['Signal', 'Indecision', 'Confirmation (today)'],
+  'Evening Star':       ['Signal', 'Indecision', 'Reversal (today)'],
+  'Morning Doji Star':  ['Signal', 'Doji', 'Confirmation (today)'],
+  'Evening Doji Star':  ['Signal', 'Doji', 'Reversal (today)'],
 };
 
 export const VOLUME_VS_AVG = [

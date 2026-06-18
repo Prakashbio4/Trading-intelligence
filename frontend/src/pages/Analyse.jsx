@@ -21,7 +21,7 @@ function patternMeta(triggerPattern) {
   const count = PATTERN_CANDLECOUNT[triggerPattern] ?? 1;
   const patternDays = SEQUENCE_DAYS.slice(-count);
   const contextDays = SEQUENCE_DAYS.slice(0, SEQUENCE_DAYS.length - count);
-  const roles = PATTERN_ROLES[triggerPattern] ?? ['Trigger'];
+  const roles = PATTERN_ROLES[triggerPattern] ?? ['Today'];
   return { count, patternDays, contextDays, roles };
 }
 import styles from './Analyse.module.css';
@@ -255,7 +255,7 @@ export default function Analyse() {
 
           {/* Step 1 — pick the trigger pattern; form adapts below */}
           <SelectField
-            label="Trigger pattern (today)" required
+            label="Today's candle pattern" required
             value={triggerPattern}
             onChange={v => !locked && setTriggerPattern(v)}
             options={CANDLE_PATTERNS}
@@ -319,7 +319,7 @@ export default function Analyse() {
                       return (
                         <div key={day} className={`${styles.seqRow} ${isLast ? styles.seqRowTrigger : ''}`}>
                           <span className={styles.seqDay}>
-                            {role}{isLast ? <span className={styles.triggerStar}> ★</span> : null}
+                            {role}
                           </span>
                           {isMulti
                             ? <SelectField value={row.pattern}
