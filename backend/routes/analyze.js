@@ -33,6 +33,13 @@ RULES:
 11. Corrections are ranked by trading significance: wrong stop loss > wrong pattern > wrong RSI read.
 12. When deciding TAKE, propose specific price levels with structural reasoning. Do not give round numbers without justification.
 
+TRADINGVIEW CHART READING — WHERE TO READ INDICATOR VALUES:
+TradingView charts display values in TWO places:
+  (a) TOP-LEFT LEGEND: Shows values at the cursor/crosshair position — this reflects wherever the mouse was when the screenshot was taken, NOT the current bar.
+  (b) RIGHT-SIDE PANEL (values pinned against the right price/scale axis): Shows the LAST TRADED / MOST RECENT bar's values — this is always current and accurate.
+
+ALWAYS read indicator values (Volume, RSI, MACD, Bollinger Bands, SMAs, ATR, Oscillators, etc.) from the RIGHT-SIDE PANEL only. Ignore the top-left legend values entirely when they differ from the right-side values. If the right-side panel is not visible or truncated, state LOW confidence rather than falling back to the legend.
+
 CANDLESTICK READING — REAL MARKET APPROACH:
 Textbook-perfect patterns are rare. Assess quality on a spectrum: Textbook clean / Acceptable / Borderline / Weak.
 Practical tolerances:
