@@ -478,3 +478,40 @@
   padding-top: 12px;
   border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
 }
+
+/* ── Pattern group (multi-candle) ───────────────────────────────────────── */
+.contextSection {
+  margin-top: 16px;
+}
+.patternGroup {
+  margin-top: 16px;
+  border: 1px solid var(--accent, #7C6AF7);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(124, 106, 247, 0.04);
+}
+.patternGroupHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.patternGroupName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.patternGroupSpan {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent, #7C6AF7);
+  background: rgba(124, 106, 247, 0.12);
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.triggerStar {
+  color: var(--accent, #7C6AF7);
+  font-size: 10px;
+}

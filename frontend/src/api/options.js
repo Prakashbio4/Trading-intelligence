@@ -41,6 +41,31 @@ export const SEQUENCE_TYPES = [
   'Indecision cluster', 'No clear sequence',
 ];
 
+export const PATTERN_CANDLECOUNT = {
+  'No pattern identified': 1,
+  'Bullish Marubozu': 1, 'Bearish Marubozu': 1,
+  'Hammer': 1, 'Hanging Man': 1, 'Inverted Hammer': 1, 'Shooting Star': 1,
+  'Dragonfly Doji': 1, 'Gravestone Doji': 1, 'Doji': 1, 'Spinning Top': 1,
+  'Bullish Engulfing': 2, 'Bearish Engulfing': 2,
+  'Piercing Line': 2, 'Dark Cloud Cover': 2,
+  'Bullish Harami': 2, 'Bearish Harami': 2,
+  'Morning Star': 3, 'Evening Star': 3,
+  'Morning Doji Star': 3, 'Evening Doji Star': 3,
+};
+
+export const PATTERN_ROLES = {
+  'Bullish Engulfing':  ['Prior candle', 'Engulfing candle'],
+  'Bearish Engulfing':  ['Prior candle', 'Engulfing candle'],
+  'Piercing Line':      ['Bearish candle', 'Piercing candle'],
+  'Dark Cloud Cover':   ['Bullish candle', 'Dark cloud candle'],
+  'Bullish Harami':     ['Mother candle', 'Baby candle'],
+  'Bearish Harami':     ['Mother candle', 'Baby candle'],
+  'Morning Star':       ['Signal', 'Indecision', 'Confirmation'],
+  'Evening Star':       ['Signal', 'Indecision', 'Reversal'],
+  'Morning Doji Star':  ['Signal', 'Doji', 'Confirmation'],
+  'Evening Doji Star':  ['Signal', 'Doji', 'Reversal'],
+};
+
 export const VOLUME_VS_AVG = [
   'Clearly above', 'Slightly above', 'About average', 'Below average', 'Cannot tell',
 ];

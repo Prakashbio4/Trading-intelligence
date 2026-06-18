@@ -8,12 +8,21 @@ import {
   TREND_OPTIONS, TREND_DURATION, STOCK_PHASE, CHART_STRUCTURE, OPPOSING_STRUCTURE,
   CANDLE_PATTERNS, PATTERN_DIRECTION, PATTERN_QUALITY, PRIOR_TREND_MATCH,
   VOLUME_VS_AVG, VOLUME_CHARACTER, MACD_OPTIONS, RSI_OPTIONS, BOLLINGER_OPTIONS, SR_CONFIDENCE,
+  PATTERN_CANDLECOUNT, PATTERN_ROLES,
 } from '../api/options.js';
 
 const SEQUENCE_DAYS = [-4, -3, -2, -1, 0];
 
 function initSequence() {
   return SEQUENCE_DAYS.map(day => ({ day, pattern: '', quality: '', direction: '' }));
+}
+
+function patternMeta(triggerPattern) {
+  const count = PATTERN_CANDLECOUNT[triggerPattern] ?? 1;
+  const patternDays = SEQUENCE_DAYS.slice(-count);
+  const contextDays = SEQUENCE_DAYS.slice(0, SEQUENCE_DAYS.length - count);
+  const roles = PATTERN_ROLES[triggerPattern] ?? ['Trigger'];
+  return { count, patternDays, contextDays, roles };
 }
 import styles from './Analyse.module.css';
 
@@ -58,9 +67,10 @@ function calcRRR(entry, sl, target) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Analyse() {
-  const [chartFile,    setChartFile]    = useState(null);
-  const [form,         setForm]         = useState(initForm());
-  const [sequence,     setSequence]     = useState(initSequence());
+  const [chartFile,      setChartFile]      = useState(null);
+  const [form,           setForm]           = useState(initForm());
+  const [sequence,       setSequence]       = useState(initSequence());
+  const [triggerPattern, setTriggerPattern] = useState('');
   const [decision,     setDecision]     = useState(null);
   const [confidence,   setConfidence]   = useState(null);
   const [entry,        setEntry]        = useState('');
@@ -81,28 +91,46 @@ export default function Analyse() {
   const rrrOk  = rrr !== null && rrr >= 1.5;
   const locked = !!result;
 
-  const triggerCandle = sequence.find(r => r.day === 0);
-  const hasTriggerPattern = triggerCandle?.pattern && triggerCandle.pattern !== 'No pattern identified';
-
   const canSubmit = useMemo(() => {
     if (!form.ticker.trim() || !form.primaryTrend) return false;
-    if (!triggerCandle?.pattern) return false;
+    if (!triggerPattern) return false;
     if (!decision || !confidence) return false;
     if (decision === 'Take' && (!entry || !sl || !target)) return false;
     return true;
-  }, [form.ticker, form.primaryTrend, triggerCandle?.pattern, decision, confidence, entry, sl, target]);
+  }, [form.ticker, form.primaryTrend, triggerPattern, decision, confidence, entry, sl, target]);
 
   async function handleSubmit() {
     if (!chartFile) { setError('Please upload a chart image first.'); return; }
     setLoading(true);
     setError(null);
 
-    const filledSequence = sequence.filter(r => r.pattern !== '');
+    const { count, patternDays, contextDays, roles } = patternMeta(triggerPattern);
+
+    const patternCandles = patternDays.map((day, i) => {
+      const row = sequence.find(r => r.day === day);
+      return {
+        role:       roles[i] ?? `Day ${day}`,
+        day,
+        candleType: count > 1 ? (row?.pattern || '') : triggerPattern,
+        direction:  row?.direction || '',
+        quality:    row?.quality   || '',
+      };
+    });
+
+    const contextCandles = contextDays
+      .map(day => {
+        const row = sequence.find(r => r.day === day);
+        if (!row?.pattern) return null;
+        return { day, candleType: row.pattern, direction: row.direction, quality: row.quality };
+      })
+      .filter(Boolean);
 
     const payload = {
       ...form,
       ticker: form.ticker.toUpperCase(),
-      candleSequence: filledSequence,
+      patternName:    triggerPattern,
+      patternCandles,
+      contextCandles,
       decision,
       confidence,
       plannedEntry:  decision === 'Take' ? parseFloat(entry)  : null,
@@ -150,6 +178,7 @@ export default function Analyse() {
     setChartFile(null);
     setForm(initForm());
     setSequence(initSequence());
+    setTriggerPattern('');
     setDecision(null);
     setConfidence(null);
     setEntry('');
@@ -223,42 +252,101 @@ export default function Analyse() {
         {/* ── Candle Sequence ──────────────────────────────────────────── */}
         <section className="card">
           <div className="section-label">Candle Sequence</div>
-          <p className={styles.seqHint}>Day 0 is today (trigger candle) — required. Fill earlier days as far back as you have context.</p>
-          <div className={styles.seqTable}>
-            <div className={styles.seqHeader}>
-              <span>Day</span><span>Pattern</span><span>Direction</span><span>Quality</span>
-            </div>
-            {sequence.map(row => {
-              const hasP = row.pattern && row.pattern !== 'No pattern identified';
-              return (
-                <div key={row.day} className={`${styles.seqRow} ${row.day === 0 ? styles.seqRowTrigger : ''}`}>
-                  <span className={styles.seqDay}>{row.day === 0 ? 'Today' : `Day ${row.day}`}</span>
-                  <SelectField
-                    value={row.pattern}
-                    onChange={v => !locked && setSeq(row.day, 'pattern', v)}
-                    options={CANDLE_PATTERNS}
-                    placeholder={row.day === 0 ? 'Required' : 'Optional'}
-                  />
-                  <SelectField
-                    value={row.direction}
-                    onChange={v => !locked && setSeq(row.day, 'direction', v)}
-                    options={PATTERN_DIRECTION}
-                    disabled={!row.pattern}
-                  />
-                  <SelectField
-                    value={row.quality}
-                    onChange={v => !locked && setSeq(row.day, 'quality', v)}
-                    options={PATTERN_QUALITY}
-                    disabled={!hasP}
-                  />
+
+          {/* Step 1 — pick the trigger pattern; form adapts below */}
+          <SelectField
+            label="Trigger pattern (today)" required
+            value={triggerPattern}
+            onChange={v => !locked && setTriggerPattern(v)}
+            options={CANDLE_PATTERNS}
+          />
+
+          {triggerPattern && (() => {
+            const { count, patternDays, contextDays, roles } = patternMeta(triggerPattern);
+            const isMulti = count > 1;
+
+            return (
+              <>
+                {/* Context candles — days before the pattern */}
+                {contextDays.length > 0 && (
+                  <div className={styles.contextSection}>
+                    <p className={styles.seqHint}>Earlier candles — optional context</p>
+                    <div className={styles.seqTable}>
+                      <div className={styles.seqHeader}>
+                        <span>Day</span><span>Candle type</span><span>Direction</span><span>Quality</span>
+                      </div>
+                      {contextDays.map(day => {
+                        const row = sequence.find(r => r.day === day);
+                        const hasP = row.pattern && row.pattern !== 'No pattern identified';
+                        return (
+                          <div key={day} className={styles.seqRow}>
+                            <span className={styles.seqDay}>Day {day}</span>
+                            <SelectField value={row.pattern}
+                              onChange={v => !locked && setSeq(day, 'pattern', v)}
+                              options={CANDLE_PATTERNS} />
+                            <SelectField value={row.direction}
+                              onChange={v => !locked && setSeq(day, 'direction', v)}
+                              options={PATTERN_DIRECTION} disabled={!row.pattern} />
+                            <SelectField value={row.quality}
+                              onChange={v => !locked && setSeq(day, 'quality', v)}
+                              options={PATTERN_QUALITY} disabled={!hasP} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pattern group — the candles that form the trigger pattern */}
+                <div className={styles.patternGroup}>
+                  <div className={styles.patternGroupHeader}>
+                    <span className={styles.patternGroupName}>{triggerPattern}</span>
+                    <span className={styles.patternGroupSpan}>
+                      {isMulti ? `${count}-candle pattern` : 'single candle'}
+                    </span>
+                  </div>
+                  <div className={styles.seqTable}>
+                    <div className={styles.seqHeader}>
+                      <span>Role</span>
+                      {isMulti ? <span>Individual candle</span> : <span />}
+                      <span>Direction</span><span>Quality</span>
+                    </div>
+                    {patternDays.map((day, i) => {
+                      const row = sequence.find(r => r.day === day);
+                      const role = roles[i] ?? `Day ${day}`;
+                      const isLast = i === patternDays.length - 1;
+                      const hasP = row.pattern && row.pattern !== 'No pattern identified';
+                      return (
+                        <div key={day} className={`${styles.seqRow} ${isLast ? styles.seqRowTrigger : ''}`}>
+                          <span className={styles.seqDay}>
+                            {role}{isLast ? <span className={styles.triggerStar}> ★</span> : null}
+                          </span>
+                          {isMulti
+                            ? <SelectField value={row.pattern}
+                                onChange={v => !locked && setSeq(day, 'pattern', v)}
+                                options={CANDLE_PATTERNS} />
+                            : <span />
+                          }
+                          <SelectField value={row.direction}
+                            onChange={v => !locked && setSeq(day, 'direction', v)}
+                            options={PATTERN_DIRECTION} disabled={!triggerPattern} />
+                          <SelectField value={row.quality}
+                            onChange={v => !locked && setSeq(day, 'quality', v)}
+                            options={PATTERN_QUALITY}
+                            disabled={isMulti ? !hasP : triggerPattern === 'No pattern identified'} />
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-          <div className={styles.seqFooter}>
-            <SelectField label="Prior trend match (sequence overall)" value={form.priorTrendMatch}
-              onChange={v => !locked && set('priorTrendMatch', v)} options={PRIOR_TREND_MATCH} />
-          </div>
+
+                <div className={styles.seqFooter}>
+                  <SelectField label="Prior trend match (sequence overall)" value={form.priorTrendMatch}
+                    onChange={v => !locked && set('priorTrendMatch', v)} options={PRIOR_TREND_MATCH} />
+                </div>
+              </>
+            );
+          })()}
         </section>
 
         {/* ── Volume & Indicators ──────────────────────────────────────── */}
@@ -489,7 +577,7 @@ function AIResponseDisplay({ analysis }) {
         <div className={styles.aiGrid}>
           <AIRow label="Trend"          value={whatISee?.trend?.direction}         conf={whatISee?.trend?.confidence}          sub={whatISee?.trend?.basis} />
           <AIRow label="Chart structure" value={whatISee?.chartStructure?.pattern}  conf={whatISee?.chartStructure?.confidence} />
-          <AIRow label="Trigger candle"   value={whatISee?.candlePattern?.name}      conf={whatISee?.candlePattern?.confidence}  sub={whatISee?.candlePattern?.reasoning} />
+          <AIRow label="Pattern (trigger)"  value={whatISee?.candlePattern?.name}      conf={whatISee?.candlePattern?.confidence}  sub={whatISee?.candlePattern?.reasoning} />
           {whatISee?.candleSequence && (
             <AIRow
               label="Candle sequence"

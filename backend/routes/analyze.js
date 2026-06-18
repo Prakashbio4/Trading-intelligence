@@ -94,7 +94,7 @@ router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
   const {
     ticker, date, lookbackWindow, chartSource,
     primaryTrend, trendDuration, stockPhase, chartStructure, opposingStructure,
-    candleSequence, priorTrendMatch,
+    patternName, patternCandles, contextCandles, priorTrendMatch,
     volumeVsAverage, volumeCharacter, macd, rsiValue, rsiDirection, bollingerBands,
     nearestSupport, nearestResistance, srConfidence,
     narrative,
@@ -102,18 +102,23 @@ router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
     plannedEntry, plannedSL, plannedTarget, plannedRRR,
   } = formData;
 
-  const sequenceRows = Array.isArray(candleSequence) ? candleSequence : [];
-  const triggerCandle = sequenceRows.find(r => r.day === 0);
-  const sequenceText = sequenceRows.length
-    ? sequenceRows
-        .sort((a, b) => a.day - b.day)
-        .map(r => {
-          const dayLabel = r.day === 0 ? 'Today (trigger)' : `Day ${r.day}`;
-          const parts = [r.pattern, r.direction !== 'N/A' ? r.direction : null, r.quality].filter(Boolean);
-          return `  ${dayLabel}: ${parts.join(' — ')}`;
-        })
-        .join('\n')
+  const pCandles = Array.isArray(patternCandles) ? patternCandles : [];
+  const cCandles = Array.isArray(contextCandles) ? contextCandles : [];
+  const candleCount = pCandles.length || 1;
+
+  const patternText = pCandles.length
+    ? pCandles.map(c => {
+        const parts = [c.candleType, c.direction !== 'N/A' ? c.direction : null, c.quality].filter(Boolean);
+        return `  ${c.role} (Day ${c.day}): ${parts.join(' — ')}`;
+      }).join('\n')
     : '  Not provided';
+
+  const contextText = cCandles.length
+    ? cCandles.map(c => {
+        const parts = [c.candleType, c.direction !== 'N/A' ? c.direction : null, c.quality].filter(Boolean);
+        return `  Day ${c.day}: ${parts.join(' — ')}`;
+      }).join('\n')
+    : '  None provided';
 
   const userDecisionBlock = decision === 'Take'
     ? `Decision: TAKE (Confidence: ${confidence})
@@ -132,9 +137,14 @@ Stock phase: ${stockPhase || 'Not specified'}
 Chart structure: ${chartStructure}
 Opposing structure: ${opposingStructure || 'None'}
 
-CANDLE SEQUENCE (oldest first, Day 0 = today/trigger):
-${sequenceText}
-Prior trend match (overall sequence): ${priorTrendMatch || 'N/A'}
+TRIGGER PATTERN: ${patternName || 'Not specified'} (${candleCount === 1 ? 'single candle' : `${candleCount}-candle pattern`})
+Pattern candles (oldest → newest):
+${patternText}
+
+CONTEXT CANDLES (days before the pattern, optional):
+${contextText}
+
+Prior trend match (sequence overall): ${priorTrendMatch || 'N/A'}
 
 VOLUME & INDICATORS:
 Volume vs average: ${volumeVsAverage}
@@ -193,10 +203,11 @@ IMPORTANT:
 - whereYouWentWrong must be an empty array [] if there are no genuine errors in the user's read.
 - myDecision.entry / stopLoss / target / rrr are null if verdict is SKIP or WATCH.
 - userLevelComparison is empty string if verdict is not TAKE or if user did not submit levels.
-- candlePattern refers to the Day 0 (trigger) candle only. Assess it independently from the chart.
-- candleSequence.interpretation must explain the arc across all submitted days, not just today.
-- If candleSequence.contradictsTrigger is true, add a correction in whereYouWentWrong (rank it high) explaining what the sequence context changes about the trigger candle's signal.
-- If fewer than 2 days are in the sequence, set candleSequence.sequenceType to "No clear sequence" and confidence to "LOW".`;
+- candlePattern assesses the trigger pattern as a whole unit. For multi-candle patterns (Engulfing, Morning Star etc.) evaluate whether the pattern meets quality thresholds: did the engulfing candle fully cover? Did the Morning Star confirmation close deep enough? Apply the tolerances from your CANDLESTICK READING rules.
+- For multi-candle patterns, candlePattern.name should be the pattern name (not the individual candle type of Day 0).
+- candleSequence.interpretation must explain the arc across pattern candles AND context candles combined.
+- If candleSequence.contradictsTrigger is true, rank the correction high in whereYouWentWrong and explain specifically what the sequence context changes about the trigger pattern's signal.
+- If fewer than 2 total candles are provided across pattern + context, set candleSequence.sequenceType to "No clear sequence" and confidence to "LOW".`;
 
   try {
     let imagePath;
