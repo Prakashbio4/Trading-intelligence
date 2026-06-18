@@ -9,6 +9,12 @@ import {
   CANDLE_PATTERNS, PATTERN_DIRECTION, PATTERN_QUALITY, PRIOR_TREND_MATCH,
   VOLUME_VS_AVG, VOLUME_CHARACTER, MACD_OPTIONS, RSI_OPTIONS, BOLLINGER_OPTIONS, SR_CONFIDENCE,
 } from '../api/options.js';
+
+const SEQUENCE_DAYS = [-4, -3, -2, -1, 0];
+
+function initSequence() {
+  return SEQUENCE_DAYS.map(day => ({ day, pattern: '', quality: '', direction: '' }));
+}
 import styles from './Analyse.module.css';
 
 const LOOKBACK      = [1, 2, 3, 4, 5];
@@ -27,9 +33,6 @@ function initForm() {
     stockPhase: '',
     chartStructure: '',
     opposingStructure: '',
-    candlePattern: '',
-    patternDirection: '',
-    patternQuality: '',
     priorTrendMatch: '',
     volumeVsAverage: '',
     volumeCharacter: '',
@@ -57,6 +60,7 @@ function calcRRR(entry, sl, target) {
 export default function Analyse() {
   const [chartFile,    setChartFile]    = useState(null);
   const [form,         setForm]         = useState(initForm());
+  const [sequence,     setSequence]     = useState(initSequence());
   const [decision,     setDecision]     = useState(null);
   const [confidence,   setConfidence]   = useState(null);
   const [entry,        setEntry]        = useState('');
@@ -69,27 +73,36 @@ export default function Analyse() {
 
   function set(key, val) { setForm(f => ({ ...f, [key]: val })); }
 
+  function setSeq(day, field, val) {
+    setSequence(s => s.map(r => r.day === day ? { ...r, [field]: val } : r));
+  }
+
   const rrr    = useMemo(() => calcRRR(entry, sl, target), [entry, sl, target]);
   const rrrOk  = rrr !== null && rrr >= 1.5;
   const locked = !!result;
 
-  const hasPattern = form.candlePattern && form.candlePattern !== 'No pattern identified';
+  const triggerCandle = sequence.find(r => r.day === 0);
+  const hasTriggerPattern = triggerCandle?.pattern && triggerCandle.pattern !== 'No pattern identified';
 
   const canSubmit = useMemo(() => {
-    if (!form.ticker.trim() || !form.primaryTrend || !form.candlePattern) return false;
+    if (!form.ticker.trim() || !form.primaryTrend) return false;
+    if (!triggerCandle?.pattern) return false;
     if (!decision || !confidence) return false;
     if (decision === 'Take' && (!entry || !sl || !target)) return false;
     return true;
-  }, [form.ticker, form.primaryTrend, form.candlePattern, decision, confidence, entry, sl, target]);
+  }, [form.ticker, form.primaryTrend, triggerCandle?.pattern, decision, confidence, entry, sl, target]);
 
   async function handleSubmit() {
     if (!chartFile) { setError('Please upload a chart image first.'); return; }
     setLoading(true);
     setError(null);
 
+    const filledSequence = sequence.filter(r => r.pattern !== '');
+
     const payload = {
       ...form,
       ticker: form.ticker.toUpperCase(),
+      candleSequence: filledSequence,
       decision,
       confidence,
       plannedEntry:  decision === 'Take' ? parseFloat(entry)  : null,
@@ -136,6 +149,7 @@ export default function Analyse() {
   function handleReset() {
     setChartFile(null);
     setForm(initForm());
+    setSequence(initSequence());
     setDecision(null);
     setConfidence(null);
     setEntry('');
@@ -206,20 +220,44 @@ export default function Analyse() {
           </div>
         </section>
 
-        {/* ── Candle Pattern ───────────────────────────────────────────── */}
+        {/* ── Candle Sequence ──────────────────────────────────────────── */}
         <section className="card">
-          <div className="section-label">Candle Pattern</div>
-          <div className={styles.grid2}>
-            <SelectField label="Pattern identified" required value={form.candlePattern}
-              onChange={v => !locked && set('candlePattern', v)} options={CANDLE_PATTERNS} />
-            <SelectField label="Pattern direction" value={form.patternDirection}
-              onChange={v => !locked && set('patternDirection', v)} options={PATTERN_DIRECTION} />
-            {hasPattern && <>
-              <SelectField label="Pattern quality" value={form.patternQuality}
-                onChange={v => !locked && set('patternQuality', v)} options={PATTERN_QUALITY} />
-              <SelectField label="Prior trend match" value={form.priorTrendMatch}
-                onChange={v => !locked && set('priorTrendMatch', v)} options={PRIOR_TREND_MATCH} />
-            </>}
+          <div className="section-label">Candle Sequence</div>
+          <p className={styles.seqHint}>Day 0 is today (trigger candle) — required. Fill earlier days as far back as you have context.</p>
+          <div className={styles.seqTable}>
+            <div className={styles.seqHeader}>
+              <span>Day</span><span>Pattern</span><span>Direction</span><span>Quality</span>
+            </div>
+            {sequence.map(row => {
+              const hasP = row.pattern && row.pattern !== 'No pattern identified';
+              return (
+                <div key={row.day} className={`${styles.seqRow} ${row.day === 0 ? styles.seqRowTrigger : ''}`}>
+                  <span className={styles.seqDay}>{row.day === 0 ? 'Today' : `Day ${row.day}`}</span>
+                  <SelectField
+                    value={row.pattern}
+                    onChange={v => !locked && setSeq(row.day, 'pattern', v)}
+                    options={CANDLE_PATTERNS}
+                    placeholder={row.day === 0 ? 'Required' : 'Optional'}
+                  />
+                  <SelectField
+                    value={row.direction}
+                    onChange={v => !locked && setSeq(row.day, 'direction', v)}
+                    options={PATTERN_DIRECTION}
+                    disabled={!row.pattern}
+                  />
+                  <SelectField
+                    value={row.quality}
+                    onChange={v => !locked && setSeq(row.day, 'quality', v)}
+                    options={PATTERN_QUALITY}
+                    disabled={!hasP}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          <div className={styles.seqFooter}>
+            <SelectField label="Prior trend match (sequence overall)" value={form.priorTrendMatch}
+              onChange={v => !locked && set('priorTrendMatch', v)} options={PRIOR_TREND_MATCH} />
           </div>
         </section>
 
@@ -451,7 +489,20 @@ function AIResponseDisplay({ analysis }) {
         <div className={styles.aiGrid}>
           <AIRow label="Trend"          value={whatISee?.trend?.direction}         conf={whatISee?.trend?.confidence}          sub={whatISee?.trend?.basis} />
           <AIRow label="Chart structure" value={whatISee?.chartStructure?.pattern}  conf={whatISee?.chartStructure?.confidence} />
-          <AIRow label="Candle pattern"  value={whatISee?.candlePattern?.name}      conf={whatISee?.candlePattern?.confidence}  sub={whatISee?.candlePattern?.reasoning} />
+          <AIRow label="Trigger candle"   value={whatISee?.candlePattern?.name}      conf={whatISee?.candlePattern?.confidence}  sub={whatISee?.candlePattern?.reasoning} />
+          {whatISee?.candleSequence && (
+            <AIRow
+              label="Candle sequence"
+              value={whatISee.candleSequence.sequenceType}
+              conf={whatISee.candleSequence.confidence}
+              sub={
+                (whatISee.candleSequence.sequenceReadable ? `${whatISee.candleSequence.sequenceReadable}  ·  ` : '') +
+                (whatISee.candleSequence.interpretation || '') +
+                (whatISee.candleSequence.contradictsTrigger && whatISee.candleSequence.contradictionNote
+                  ? `  ⚠ ${whatISee.candleSequence.contradictionNote}` : '')
+              }
+            />
+          )}
           <AIRow label="Volume"          value={whatISee?.volume?.vsAverage}        conf={whatISee?.volume?.confidence}         sub={whatISee?.volume?.note} />
           <AIRow label="MACD"            value={whatISee?.macd?.status}             conf={whatISee?.macd?.confidence} />
           <AIRow label="RSI"

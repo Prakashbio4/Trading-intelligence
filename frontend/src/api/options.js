@@ -34,7 +34,12 @@ export const PATTERN_DIRECTION = ['N/A', 'Bullish', 'Bearish', 'Neutral'];
 
 export const PATTERN_QUALITY = ['Textbook clean', 'Acceptable', 'Borderline', 'Weak'];
 
-export const PRIOR_TREND_MATCH = ['Yes', 'No', 'Unsure'];
+export const PRIOR_TREND_MATCH = ['Yes', 'No', 'Partial'];
+
+export const SEQUENCE_TYPES = [
+  'Exhaustion', 'Reversal building', 'Continuation',
+  'Indecision cluster', 'No clear sequence',
+];
 
 export const VOLUME_VS_AVG = [
   'Clearly above', 'Slightly above', 'About average', 'Below average', 'Cannot tell',

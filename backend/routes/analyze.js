@@ -94,13 +94,26 @@ router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
   const {
     ticker, date, lookbackWindow, chartSource,
     primaryTrend, trendDuration, stockPhase, chartStructure, opposingStructure,
-    candlePattern, patternDirection, patternQuality, priorTrendMatch,
+    candleSequence, priorTrendMatch,
     volumeVsAverage, volumeCharacter, macd, rsiValue, rsiDirection, bollingerBands,
     nearestSupport, nearestResistance, srConfidence,
     narrative,
     decision, confidence,
     plannedEntry, plannedSL, plannedTarget, plannedRRR,
   } = formData;
+
+  const sequenceRows = Array.isArray(candleSequence) ? candleSequence : [];
+  const triggerCandle = sequenceRows.find(r => r.day === 0);
+  const sequenceText = sequenceRows.length
+    ? sequenceRows
+        .sort((a, b) => a.day - b.day)
+        .map(r => {
+          const dayLabel = r.day === 0 ? 'Today (trigger)' : `Day ${r.day}`;
+          const parts = [r.pattern, r.direction !== 'N/A' ? r.direction : null, r.quality].filter(Boolean);
+          return `  ${dayLabel}: ${parts.join(' — ')}`;
+        })
+        .join('\n')
+    : '  Not provided';
 
   const userDecisionBlock = decision === 'Take'
     ? `Decision: TAKE (Confidence: ${confidence})
@@ -119,11 +132,9 @@ Stock phase: ${stockPhase || 'Not specified'}
 Chart structure: ${chartStructure}
 Opposing structure: ${opposingStructure || 'None'}
 
-CANDLE PATTERN:
-Pattern: ${candlePattern}
-Direction: ${patternDirection || 'N/A'}
-Quality: ${patternQuality || 'N/A'}
-Prior trend match: ${priorTrendMatch || 'N/A'}
+CANDLE SEQUENCE (oldest first, Day 0 = today/trigger):
+${sequenceText}
+Prior trend match (overall sequence): ${priorTrendMatch || 'N/A'}
 
 VOLUME & INDICATORS:
 Volume vs average: ${volumeVsAverage}
@@ -149,6 +160,7 @@ Respond with ONLY valid JSON matching this exact schema:
     "trend": { "direction": "", "basis": "", "duration": "", "confidence": "HIGH|MEDIUM|LOW" },
     "chartStructure": { "pattern": "", "confirmed": false, "confidence": "HIGH|MEDIUM|LOW" },
     "candlePattern": { "name": "", "direction": "", "quality": "", "priorTrendMatch": false, "reasoning": "", "confidence": "HIGH|MEDIUM|LOW" },
+    "candleSequence": { "sequenceType": "Exhaustion|Reversal building|Continuation|Indecision cluster|No clear sequence", "sequenceReadable": "", "interpretation": "", "contradictsTrigger": false, "contradictionNote": "", "confidence": "HIGH|MEDIUM|LOW" },
     "volume": { "vsAverage": "", "character": "", "supportsTrade": false, "note": "", "confidence": "HIGH|MEDIUM|LOW" },
     "macd": { "status": "", "confidence": "HIGH|MEDIUM|LOW" },
     "rsi": { "value": null, "direction": "", "confidence": "HIGH|MEDIUM|LOW" },
@@ -180,7 +192,11 @@ Respond with ONLY valid JSON matching this exact schema:
 IMPORTANT:
 - whereYouWentWrong must be an empty array [] if there are no genuine errors in the user's read.
 - myDecision.entry / stopLoss / target / rrr are null if verdict is SKIP or WATCH.
-- userLevelComparison is empty string if verdict is not TAKE or if user did not submit levels.`;
+- userLevelComparison is empty string if verdict is not TAKE or if user did not submit levels.
+- candlePattern refers to the Day 0 (trigger) candle only. Assess it independently from the chart.
+- candleSequence.interpretation must explain the arc across all submitted days, not just today.
+- If candleSequence.contradictsTrigger is true, add a correction in whereYouWentWrong (rank it high) explaining what the sequence context changes about the trigger candle's signal.
+- If fewer than 2 days are in the sequence, set candleSequence.sequenceType to "No clear sequence" and confidence to "LOW".`;
 
   try {
     let imagePath;
