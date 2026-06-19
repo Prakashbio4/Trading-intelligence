@@ -18,17 +18,48 @@ export const OPPOSING_STRUCTURE = [
   'Double top blocking', 'Double bottom blocking',
 ];
 
-export const CANDLE_PATTERNS = [
+// Single candle types — used in context rows and as individual candle selectors
+// inside multi-candle pattern groups
+export const SINGLE_CANDLE_TYPES = [
   'No pattern identified',
   'Bullish Marubozu', 'Bearish Marubozu',
   'Hammer', 'Hanging Man', 'Inverted Hammer', 'Shooting Star',
   'Dragonfly Doji', 'Gravestone Doji', 'Doji', 'Spinning Top',
-  'Bullish Engulfing', 'Bearish Engulfing',
-  'Piercing Line', 'Dark Cloud Cover',
-  'Morning Star', 'Evening Star',
-  'Morning Doji Star', 'Evening Doji Star',
-  'Bullish Harami', 'Bearish Harami',
 ];
+
+// Grouped structure for the trigger pattern dropdown
+export const CANDLE_PATTERN_GROUPS = [
+  {
+    label: 'No pattern',
+    options: ['No pattern identified'],
+  },
+  {
+    label: 'Single candle',
+    options: [
+      'Bullish Marubozu', 'Bearish Marubozu',
+      'Hammer', 'Hanging Man', 'Inverted Hammer', 'Shooting Star',
+      'Dragonfly Doji', 'Gravestone Doji', 'Doji', 'Spinning Top',
+    ],
+  },
+  {
+    label: '2-candle patterns',
+    options: [
+      'Bullish Engulfing', 'Bearish Engulfing',
+      'Piercing Line', 'Dark Cloud Cover',
+      'Bullish Harami', 'Bearish Harami',
+    ],
+  },
+  {
+    label: '3-candle patterns',
+    options: [
+      'Morning Star', 'Evening Star',
+      'Morning Doji Star', 'Evening Doji Star',
+    ],
+  },
+];
+
+// Flat list kept for any legacy usage
+export const CANDLE_PATTERNS = CANDLE_PATTERN_GROUPS.flatMap(g => g.options);
 
 export const PATTERN_DIRECTION = ['N/A', 'Bullish', 'Bearish', 'Neutral'];
 

@@ -6,7 +6,8 @@ import { SelectField, NumberField, TextField, TextArea } from '../components/Fie
 import { analyzeUnified, saveSession } from '../api/index.js';
 import {
   TREND_OPTIONS, TREND_DURATION, STOCK_PHASE, CHART_STRUCTURE, OPPOSING_STRUCTURE,
-  CANDLE_PATTERNS, PATTERN_DIRECTION, PATTERN_QUALITY, PRIOR_TREND_MATCH,
+  SINGLE_CANDLE_TYPES, CANDLE_PATTERN_GROUPS,
+  PATTERN_DIRECTION, PATTERN_QUALITY, PRIOR_TREND_MATCH,
   VOLUME_VS_AVG, VOLUME_CHARACTER, MACD_OPTIONS, RSI_OPTIONS, BOLLINGER_OPTIONS, SR_CONFIDENCE,
   PATTERN_CANDLECOUNT, PATTERN_ROLES,
 } from '../api/options.js';
@@ -254,12 +255,26 @@ export default function Analyse() {
           <div className="section-label">Candle Sequence</div>
 
           {/* Step 1 — pick the trigger pattern; form adapts below */}
-          <SelectField
-            label="Today's candle pattern" required
-            value={triggerPattern}
-            onChange={v => !locked && setTriggerPattern(v)}
-            options={CANDLE_PATTERNS}
-          />
+          <div className={styles.groupedSelectWrap}>
+            <label className={styles.groupedSelectLabel}>
+              Today&apos;s candle pattern <span className={styles.required}>*</span>
+            </label>
+            <select
+              value={triggerPattern}
+              onChange={e => !locked && setTriggerPattern(e.target.value)}
+              className={styles.groupedSelect}
+              disabled={locked}
+            >
+              <option value="">— select pattern —</option>
+              {CANDLE_PATTERN_GROUPS.map(group => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.options.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
 
           {triggerPattern && (() => {
             const { count, patternDays, contextDays, roles } = patternMeta(triggerPattern);
@@ -283,7 +298,7 @@ export default function Analyse() {
                             <span className={styles.seqDay}>Day {day}</span>
                             <SelectField value={row.pattern}
                               onChange={v => !locked && setSeq(day, 'pattern', v)}
-                              options={CANDLE_PATTERNS} />
+                              options={SINGLE_CANDLE_TYPES} />
                             <SelectField value={row.direction}
                               onChange={v => !locked && setSeq(day, 'direction', v)}
                               options={PATTERN_DIRECTION} disabled={!row.pattern} />
@@ -324,7 +339,7 @@ export default function Analyse() {
                           {isMulti
                             ? <SelectField value={row.pattern}
                                 onChange={v => !locked && setSeq(day, 'pattern', v)}
-                                options={CANDLE_PATTERNS} />
+                                options={SINGLE_CANDLE_TYPES} />
                             : <span />
                           }
                           <SelectField value={row.direction}
