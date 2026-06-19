@@ -86,6 +86,23 @@ export async function updateSession(id, patch) {
   return handleResponse(res);
 }
 
+export async function deleteSession(id) {
+  const res = await fetch(`${BASE}/journal/${id}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+}
+
+export async function deleteSessions(ids) {
+  const res = await fetch(`${BASE}/journal`, {
+    method: 'DELETE',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ ids }),
+  });
+  return handleResponse(res);
+}
+
 export async function sendChatMessage(id, message) {
   const res = await fetch(`${BASE}/journal/${id}/chat`, {
     method: 'POST',

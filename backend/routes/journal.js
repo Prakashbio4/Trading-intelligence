@@ -328,6 +328,52 @@ router.patch('/:id', authMiddleware, async (req, res) => {
   }
 });
 
+// DELETE /journal/:id
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const { data: existing, error: fetchErr } = await supabase
+      .from('journal_sessions')
+      .select('id, user_id')
+      .eq('id', req.params.id)
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+    if (!existing) return res.status(404).json({ error: 'Session not found' });
+
+    if (req.user.role !== 'superuser' && existing.user_id !== req.user.userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const { error } = await supabase
+      .from('journal_sessions')
+      .delete()
+      .eq('id', req.params.id);
+
+    if (error) throw error;
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not delete session', detail: err.message });
+  }
+});
+
+// DELETE /journal  (bulk — ids in request body)
+router.delete('/', authMiddleware, async (req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'ids must be a non-empty array' });
+  }
+
+  try {
+    let query = supabase.from('journal_sessions').delete().in('id', ids);
+    if (req.user.role !== 'superuser') query = query.eq('user_id', req.user.userId);
+    const { error } = await query;
+    if (error) throw error;
+    res.json({ deleted: ids.length });
+  } catch (err) {
+    res.status(500).json({ error: 'Could not delete sessions', detail: err.message });
+  }
+});
+
 // POST /journal/insights-chat
 router.post('/insights-chat', authMiddleware, async (req, res) => {
   const { message, context, history = [] } = req.body;

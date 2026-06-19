@@ -622,3 +622,95 @@
   color: var(--text-muted);
   margin: 4px 0 10px;
 }
+
+/* ── Bulk selection & delete ── */
+.checkCol {
+  width: 36px;
+  padding: var(--sp-2) var(--sp-3) !important;
+}
+
+.checkbox {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.deleteBar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius);
+  margin-bottom: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.deleteBarText {
+  font-size: 13px;
+  color: var(--text);
+  flex: 1;
+}
+
+/* Delete button in modal header */
+.deleteBtnModal {
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: var(--radius);
+  color: var(--danger);
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font-display);
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+.deleteBtnModal:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--danger);
+}
+.deleteBtnModal:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Confirm dialog */
+.confirmOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+}
+
+.confirmBox {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-6);
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.confirmTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.confirmBody {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.confirmFooter {
+  display: flex;
+  gap: var(--sp-3);
+  justify-content: flex-end;
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getSessions, updateSession } from '../api/index.js';
+import { getSessions, updateSession, deleteSession, deleteSessions } from '../api/index.js';
 import ChatPanel from '../components/ChatPanel.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import styles from './Journal.module.css';
@@ -575,9 +575,28 @@ function OutcomeEditor({ session, onSaved }) {
   );
 }
 
+// ── Delete confirmation dialog ────────────────────────────────────────────────
+
+function DeleteConfirmDialog({ count, onConfirm, onCancel, deleting }) {
+  return (
+    <div className={styles.confirmOverlay}>
+      <div className={styles.confirmBox}>
+        <p className={styles.confirmTitle}>Delete {count === 1 ? 'this entry' : `${count} entries`}?</p>
+        <p className={styles.confirmBody}>This action cannot be undone.</p>
+        <div className={styles.confirmFooter}>
+          <button className="btn btn-ghost" onClick={onCancel} disabled={deleting}>Cancel</button>
+          <button className="btn btn-danger" onClick={onConfirm} disabled={deleting}>
+            {deleting ? 'Deleting…' : 'Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Session detail modal ──────────────────────────────────────────────────────
 
-function SessionDetail({ session, onClose, onUpdate }) {
+function SessionDetail({ session, onClose, onUpdate, onDelete }) {
   const lookback = session.formData?.lookbackWindow || session.userInput?.lookbackWindow;
 
   return (
@@ -607,7 +626,10 @@ function SessionDetail({ session, onClose, onUpdate }) {
               </div>
             )}
           </div>
-          <button className={styles.closeBtn} onClick={onClose}>✕</button>
+          <div style={{ display: 'flex', gap: 'var(--sp-2)', flexShrink: 0 }}>
+            <button className={styles.deleteBtnModal} onClick={() => onDelete(session)}>Delete</button>
+            <button className={styles.closeBtn} onClick={onClose}>✕</button>
+          </div>
         </div>
 
         <div className={styles.modalBody}>
@@ -647,13 +669,17 @@ function SessionDetail({ session, onClose, onUpdate }) {
 // ── Main Journal page ─────────────────────────────────────────────────────────
 
 export default function Journal() {
-  const [sessions,  setSessions]  = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(null);
-  const [selected,  setSelected]  = useState(null);
-  const [filters,   setFilters]   = useState({ verdict: '', outcome: '' });
+  const [sessions,      setSessions]      = useState([]);
+  const [loading,       setLoading]       = useState(true);
+  const [error,         setError]         = useState(null);
+  const [selected,      setSelected]      = useState(null);
+  const [filters,       setFilters]       = useState({ verdict: '', outcome: '' });
+  const [selectedIds,   setSelectedIds]   = useState(new Set());
+  const [deleteConfirm, setDeleteConfirm] = useState(null); // null | { type:'single'|'bulk', ids:Set }
+  const [deleting,      setDeleting]      = useState(false);
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { setSelectedIds(new Set()); }, [filters]);
 
   async function load() {
     setLoading(true);
@@ -667,12 +693,61 @@ export default function Journal() {
     setSelected(updated);
   }
 
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(s => s.id)));
+    }
+  }
+
+  function requestDelete(session) {
+    setDeleteConfirm({ type: 'single', ids: new Set([session.id]) });
+  }
+
+  function requestBulkDelete() {
+    setDeleteConfirm({ type: 'bulk', ids: new Set(selectedIds) });
+  }
+
+  async function confirmDelete() {
+    if (!deleteConfirm) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const ids = [...deleteConfirm.ids];
+      if (deleteConfirm.type === 'single') {
+        await deleteSession(ids[0]);
+      } else {
+        await deleteSessions(ids);
+      }
+      setSessions(prev => prev.filter(s => !deleteConfirm.ids.has(s.id)));
+      setSelectedIds(prev => { const n = new Set(prev); ids.forEach(id => n.delete(id)); return n; });
+      if (selected && deleteConfirm.ids.has(selected.id)) setSelected(null);
+      setDeleteConfirm(null);
+    } catch (err) {
+      setError(err.message);
+      setDeleteConfirm(null);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const filtered = sessions.filter(s => {
     const verdict = s.aiDecision?.verdict || s.aiVerdict;
     if (filters.verdict && verdict !== filters.verdict) return false;
     if (filters.outcome && s.outcome !== filters.outcome) return false;
     return true;
   });
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every(s => selectedIds.has(s.id));
 
   return (
     <div className={styles.page}>
@@ -701,6 +776,14 @@ export default function Journal() {
         <button className="btn btn-ghost" onClick={() => setFilters({ verdict: '', outcome: '' })}>Clear</button>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className={styles.deleteBar}>
+          <span className={styles.deleteBarText}>{selectedIds.size} {selectedIds.size === 1 ? 'entry' : 'entries'} selected</span>
+          <button className="btn btn-ghost" onClick={() => setSelectedIds(new Set())}>Deselect all</button>
+          <button className="btn btn-danger" onClick={requestBulkDelete}>Delete selected</button>
+        </div>
+      )}
+
       {error && <div className={styles.error}>{error}</div>}
 
       {loading ? (
@@ -716,6 +799,14 @@ export default function Journal() {
           <table className={styles.table}>
             <thead>
               <tr>
+                <th className={styles.checkCol}>
+                  <input
+                    type="checkbox"
+                    className={styles.checkbox}
+                    checked={allFilteredSelected}
+                    onChange={toggleSelectAll}
+                  />
+                </th>
                 <th>#</th>
                 <th>Date</th>
                 <th>Stock</th>
@@ -740,6 +831,14 @@ export default function Journal() {
                   : null;
                 return (
                   <tr key={s.id} className={styles.row} onClick={() => setSelected(s)}>
+                    <td className={styles.checkCol} onClick={e => { e.stopPropagation(); toggleSelect(s.id); }}>
+                      <input
+                        type="checkbox"
+                        className={styles.checkbox}
+                        checked={selectedIds.has(s.id)}
+                        onChange={() => toggleSelect(s.id)}
+                      />
+                    </td>
                     <td className="mono muted">{filtered.length - i}</td>
                     <td className="mono">{formatDate(s.createdAt)}</td>
                     <td className={styles.ticker}>{s.ticker || '—'}</td>
@@ -781,6 +880,16 @@ export default function Journal() {
           session={selected}
           onClose={() => setSelected(null)}
           onUpdate={handleUpdate}
+          onDelete={requestDelete}
+        />
+      )}
+
+      {deleteConfirm && (
+        <DeleteConfirmDialog
+          count={deleteConfirm.ids.size}
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirm(null)}
+          deleting={deleting}
         />
       )}
     </div>
