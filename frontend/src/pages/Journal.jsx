@@ -563,7 +563,7 @@ function OutcomeEditor({ session, onSaved }) {
 
       {/* ── Notes (shared) ── */}
       <textarea value={notes} onChange={e => setNotes(e.target.value)}
-        placeholder={isTake ? 'What actually happened? Anything you'd do differently?' : 'Any other observations about this Skip/Watch decision?'}
+        placeholder={isTake ? "What actually happened? Anything you'd do differently?" : 'Any other observations about this Skip/Watch decision?'}
         className={styles.notesArea} rows={3} />
 
       <div className={styles.outcomeFooter}>
