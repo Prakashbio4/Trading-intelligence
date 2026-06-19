@@ -183,4 +183,4 @@ All fields nullable and additive — existing sessions unaffected.
 - Should outcome be editable after saving? (Probably yes — "still open" needs to update later)
 - Minimum session count before Insights shows correlation cards? Suggested: 10 outcomes logged
 - Should the journal nudge show per-week or total unresolved count?
-- For Skip/Watch outcomes — do we ask what a hypothetical entry/target would have been, to calculate "missed RRR"? Could be powerful data but adds friction at fill time.
+- ~~For Skip/Watch outcomes — do we ask what a hypothetical entry/target would have been, to calculate "missed RRR"?~~ **Decided: No.** If the RRR was good enough, it would have been a Take. Skip/Watch means the setup or RRR wasn't there — a hypothetical calculation adds noise, not signal.
