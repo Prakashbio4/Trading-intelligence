@@ -10,7 +10,10 @@ const VERDICT_CLASS = {
   CONDITIONAL: 'badge-amber', WATCH: 'badge-amber',
   LEARN: 'badge-muted',
 };
-const OUTCOME_CLASS = { Win: 'badge-green', Loss: 'badge-red', Open: 'badge-teal', Skip: 'badge-muted' };
+const OUTCOME_CLASS = {
+  Win: 'badge-green', Loss: 'badge-red', Open: 'badge-teal',
+  Skip: 'badge-muted', Watch: 'badge-muted', Missed: 'badge-red',
+};
 const CONF_CLASS    = { HIGH: 'badge-green', MEDIUM: 'badge-amber', LOW: 'badge-red' };
 
 function lvl(item) {
@@ -378,24 +381,47 @@ function AIReadLegacyM3({ aiAnalysis }) {
 
 // ── Outcome editor ────────────────────────────────────────────────────────────
 
-function OutcomeEditor({ session, onSaved }) {
-  const isTake = session.decision === 'Take';
+function SmallSelect({ value, onChange, children, placeholder }) {
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)} className={styles.smallSelect}>
+      {placeholder && <option value="">{placeholder}</option>}
+      {children}
+    </select>
+  );
+}
 
-  const [outcome,      setOutcome]      = useState(session.outcome      ?? '');
-  const [actualEntry,  setActualEntry]  = useState(session.actualEntry  ?? '');
-  const [actualExit,   setActualExit]   = useState(session.actualExit   ?? '');
-  const [notes,        setNotes]        = useState(session.notes        ?? '');
+function OutcomeEditor({ session, onSaved }) {
+  const isTake    = session.decision === 'Take';
+  const existing  = session.outcomeData ?? {};
+
+  // Take fields
+  const [result,       setResult]       = useState(existing.result       ?? '');
+  const [actualEntry,  setActualEntry]  = useState(session.actualEntry   ?? '');
+  const [actualExit,   setActualExit]   = useState(session.actualExit    ?? '');
+
+  // Skip/Watch fields
+  const [direction,    setDirection]    = useState(existing.direction    ?? '');
+  const [move,         setMove]         = useState(existing.move         ?? '');
+  const [decisionOk,   setDecisionOk]   = useState(existing.decisionCorrect ?? '');
+
+  // Shared fields
+  const [setupPlayed,  setSetupPlayed]  = useState(existing.setupPlayedOut ?? '');
+  const [macroNote,    setMacroNote]    = useState(existing.macroNote    ?? '');
+  const [sectorNote,   setSectorNote]   = useState(existing.sectorNote   ?? '');
+  const [notes,        setNotes]        = useState(session.notes         ?? '');
   const [saving,       setSaving]       = useState(false);
 
   async function save() {
     setSaving(true);
     try {
-      const patch = { outcome: outcome || undefined, notes: notes || undefined };
+      const outcomeData = isTake
+        ? { result, setupPlayedOut: setupPlayed, macroNote, sectorNote }
+        : { direction, move, decisionCorrect: decisionOk, setupPlayedOut: setupPlayed, macroNote, sectorNote };
+
+      const patch = { outcomeData, notes: notes || undefined };
       if (isTake) {
         if (actualEntry) patch.actualEntry = parseFloat(actualEntry);
         if (actualExit)  patch.actualExit  = parseFloat(actualExit);
-      } else if (session.exitPrice || actualExit) {
-        if (actualExit) patch.exitPrice = parseFloat(actualExit);
       }
       const updated = await updateSession(session.id, patch);
       onSaved(updated);
@@ -404,11 +430,10 @@ function OutcomeEditor({ session, onSaved }) {
     }
   }
 
-  // Planned vs actual delta (only for TAKE with planned levels)
-  const hasPlanned = isTake && session.plannedEntry != null;
-  const hasActual  = hasPlanned && session.actualEntry != null && session.actualExit != null;
-
-  const actualRRR = hasActual
+  // Planned vs actual delta
+  const hasPlanned    = isTake && session.plannedEntry != null;
+  const hasActual     = hasPlanned && session.actualEntry != null && session.actualExit != null;
+  const actualRRR     = hasActual
     ? Math.round(((session.actualExit - session.actualEntry) / (session.actualEntry - session.plannedSL)) * 100) / 100
     : null;
   const entrySlippage = hasActual
@@ -417,97 +442,129 @@ function OutcomeEditor({ session, onSaved }) {
 
   return (
     <div className={styles.outcomeSection}>
-      <SectionHead>What Happened</SectionHead>
 
-      <div className={styles.outcomeRow}>
-        <select value={outcome} onChange={e => setOutcome(e.target.value)} className={styles.smallSelect}>
-          <option value="">Outcome…</option>
-          <option>Win</option>
-          <option>Loss</option>
-          <option>Open</option>
-          <option>Skip</option>
-        </select>
+      {/* ── TAKE outcome ── */}
+      {isTake && (
+        <>
+          <SectionHead>What Happened</SectionHead>
+          <div className={styles.outcomeFields}>
+            <div className={styles.outcomeField}>
+              <span className={styles.fieldLabel}>Result</span>
+              <SmallSelect value={result} onChange={setResult} placeholder="Select result…">
+                <option value="hit_target">Hit target</option>
+                <option value="stopped_out">Stopped out</option>
+                <option value="manual_exit">Manually exited</option>
+                <option value="open">Still open</option>
+              </SmallSelect>
+            </div>
+            <div className={styles.outcomeField}>
+              <span className={styles.fieldLabel}>Setup played out as read?</span>
+              <SmallSelect value={setupPlayed} onChange={setSetupPlayed} placeholder="Select…">
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+                <option value="partially">Partially</option>
+              </SmallSelect>
+            </div>
+          </div>
+
+          <div className={styles.actualLevels}>
+            <span className={styles.fieldLabel}>Actual levels</span>
+            <div className={styles.levelInputRow}>
+              <input type="number" placeholder="Actual entry ₹" value={actualEntry}
+                onChange={e => setActualEntry(e.target.value)} className={styles.smallInput} step="0.01" />
+              <input type="number" placeholder="Exit price ₹" value={actualExit}
+                onChange={e => setActualExit(e.target.value)} className={styles.smallInput} step="0.01" />
+            </div>
+          </div>
+
+          {hasActual && (
+            <div className={styles.deltaBlock}>
+              <span className={styles.fieldLabel}>Planned vs Actual</span>
+              <div className={styles.levelCells}>
+                <div className={styles.levelCell}>
+                  <span className={styles.levelKey}>Entry slippage</span>
+                  <span className={`mono ${entrySlippage >= 0 ? 'danger' : 'accent'}`}>
+                    {entrySlippage >= 0 ? '+' : ''}{entrySlippage}
+                  </span>
+                </div>
+                <div className={styles.levelCell}>
+                  <span className={styles.levelKey}>Planned RRR</span>
+                  <span className="mono">{session.plannedRRR}</span>
+                </div>
+                {actualRRR != null && (
+                  <div className={styles.levelCell}>
+                    <span className={styles.levelKey}>Actual RRR</span>
+                    <span className={`mono ${actualRRR >= 1.5 ? 'accent' : 'danger'}`}>{actualRRR}</span>
+                  </div>
+                )}
+                {session.pnl != null && (
+                  <div className={styles.levelCell}>
+                    <span className={styles.levelKey}>P&L</span>
+                    <span className={`mono ${session.pnl >= 0 ? 'accent' : 'danger'}`}>
+                      {session.pnl >= 0 ? '+' : ''}₹{session.pnl}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── SKIP / WATCH outcome ── */}
+      {!isTake && (
+        <>
+          <SectionHead>What Did the Stock Do?</SectionHead>
+          <div className={styles.outcomeFields}>
+            <div className={styles.outcomeField}>
+              <span className={styles.fieldLabel}>Stock direction</span>
+              <SmallSelect value={direction} onChange={setDirection} placeholder="Select…">
+                <option value="as_expected">Moved in expected direction</option>
+                <option value="opposite">Moved opposite</option>
+                <option value="flat">Stayed flat</option>
+              </SmallSelect>
+            </div>
+            <div className={styles.outcomeField}>
+              <span className={styles.fieldLabel}>Approximate move</span>
+              <input type="text" placeholder='e.g. "up 8% in 4 sessions"'
+                value={move} onChange={e => setMove(e.target.value)} className={styles.smallInput} />
+            </div>
+            <div className={styles.outcomeField}>
+              <span className={styles.fieldLabel}>Was the {session.decision} right?</span>
+              <SmallSelect value={decisionOk} onChange={setDecisionOk} placeholder="Select…">
+                <option value="yes">Yes — right to {session.decision?.toLowerCase()}</option>
+                <option value="no">No — missed a valid move</option>
+                <option value="too_early">Too early to tell</option>
+              </SmallSelect>
+            </div>
+            <div className={styles.outcomeField}>
+              <span className={styles.fieldLabel}>Setup played out as read?</span>
+              <SmallSelect value={setupPlayed} onChange={setSetupPlayed} placeholder="Select…">
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+                <option value="partially">Partially</option>
+              </SmallSelect>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Market context (shared) ── */}
+      <div className={styles.contextBlock}>
+        <SectionHead>Market Context at Decision Time</SectionHead>
+        <p className={styles.contextHint}>Write freely — whatever felt relevant when you made this call.</p>
+        <textarea value={macroNote} onChange={e => setMacroNote(e.target.value)}
+          placeholder="What was the broader market doing? (Nifty trend, global events, FII activity, pre-event nervousness…)"
+          className={styles.notesArea} rows={3} />
+        <textarea value={sectorNote} onChange={e => setSectorNote(e.target.value)}
+          placeholder="What was the sector doing? (rotation, specific news, hot or cooling…)"
+          className={styles.notesArea} rows={2} style={{ marginTop: 8 }} />
       </div>
 
-      {/* Actual levels — shown for TAKE sessions */}
-      {isTake && (
-        <div className={styles.actualLevels}>
-          <span className={styles.infoKey} style={{ display: 'block', marginBottom: 8 }}>Actual levels</span>
-          <div className={styles.outcomeRow}>
-            <input
-              type="number"
-              placeholder="Actual entry ₹"
-              value={actualEntry}
-              onChange={e => setActualEntry(e.target.value)}
-              className={styles.smallInput}
-              step="0.01"
-            />
-            <input
-              type="number"
-              placeholder="Exit price ₹"
-              value={actualExit}
-              onChange={e => setActualExit(e.target.value)}
-              className={styles.smallInput}
-              step="0.01"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Exit price for non-TAKE sessions */}
-      {!isTake && (
-        <div className={styles.outcomeRow} style={{ marginTop: 8 }}>
-          <input
-            type="number"
-            placeholder="Exit price ₹"
-            value={actualExit}
-            onChange={e => setActualExit(e.target.value)}
-            className={styles.smallInput}
-            step="0.01"
-          />
-        </div>
-      )}
-
-      {/* Planned vs actual delta */}
-      {hasActual && (
-        <div className={styles.deltaBlock}>
-          <span className={styles.infoKey} style={{ display: 'block', marginBottom: 8 }}>Planned vs Actual</span>
-          <div className={styles.levelCells}>
-            <div className={styles.levelCell}>
-              <span className={styles.levelKey}>Entry slippage</span>
-              <span className={`mono ${entrySlippage >= 0 ? 'danger' : 'accent'}`}>
-                {entrySlippage >= 0 ? '+' : ''}{entrySlippage}
-              </span>
-            </div>
-            <div className={styles.levelCell}>
-              <span className={styles.levelKey}>Planned RRR</span>
-              <span className="mono">{session.plannedRRR}</span>
-            </div>
-            {actualRRR != null && (
-              <div className={styles.levelCell}>
-                <span className={styles.levelKey}>Actual RRR</span>
-                <span className={`mono ${actualRRR >= 1.5 ? 'accent' : 'danger'}`}>{actualRRR}</span>
-              </div>
-            )}
-            {session.pnl != null && (
-              <div className={styles.levelCell}>
-                <span className={styles.levelKey}>P&L</span>
-                <span className={`mono ${session.pnl >= 0 ? 'accent' : 'danger'}`}>
-                  {session.pnl >= 0 ? '+' : ''}₹{session.pnl}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <textarea
-        value={notes}
-        onChange={e => setNotes(e.target.value)}
-        placeholder="What actually happened? Anything you'd do differently?"
-        className={styles.notesArea}
-        rows={4}
-      />
+      {/* ── Notes (shared) ── */}
+      <textarea value={notes} onChange={e => setNotes(e.target.value)}
+        placeholder={isTake ? 'What actually happened? Anything you'd do differently?' : 'Any other observations about this Skip/Watch decision?'}
+        className={styles.notesArea} rows={3} />
 
       <div className={styles.outcomeFooter}>
         <button className="btn btn-primary" onClick={save} disabled={saving}>
@@ -671,8 +728,16 @@ export default function Journal() {
             </thead>
             <tbody>
               {filtered.map((s, i) => {
-                const pattern = s.formData?.candlePattern || s.userInput?.candlePattern;
+                const pattern = s.formData?.patternName || s.formData?.candlePattern || s.userInput?.candlePattern;
                 const aiVerdict = s.aiDecision?.verdict || s.aiVerdict;
+                const od = s.outcomeData;
+                const outcomeLabel = s.outcome
+                  ? s.outcome
+                  : od?.decisionCorrect === 'no' ? 'Missed'
+                  : null;
+                const outcomeDetail = !s.outcome && od
+                  ? (od.direction === 'as_expected' ? '↑ as read' : od.direction === 'opposite' ? '↓ opposite' : od.direction === 'flat' ? '→ flat' : null)
+                  : null;
                 return (
                   <tr key={s.id} className={styles.row} onClick={() => setSelected(s)}>
                     <td className="mono muted">{filtered.length - i}</td>
@@ -690,13 +755,17 @@ export default function Journal() {
                         : <span className="muted">—</span>}
                     </td>
                     <td>
-                      {s.outcome
-                        ? <span className={`badge ${OUTCOME_CLASS[s.outcome] ?? 'badge-muted'}`}>{s.outcome}</span>
+                      {outcomeLabel
+                        ? <span className={`badge ${OUTCOME_CLASS[outcomeLabel] ?? 'badge-muted'}`}>{outcomeLabel}</span>
+                        : outcomeDetail
+                        ? <span className="muted">{outcomeDetail}</span>
                         : <span className="muted">—</span>}
                     </td>
                     <td className="mono">
                       {s.pnl != null
                         ? <span className={s.pnl >= 0 ? 'accent' : 'danger'}>{s.pnl >= 0 ? '+' : ''}₹{s.pnl}</span>
+                        : od?.move
+                        ? <span className="muted">{od.move}</span>
                         : <span className="muted">—</span>}
                     </td>
                   </tr>

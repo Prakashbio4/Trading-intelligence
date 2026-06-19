@@ -38,6 +38,7 @@ function toDb(s) {
     exit_price: s.exitPrice,
     pnl: s.pnl,
     outcome: s.outcome,
+    outcome_data: s.outcomeData ?? null,
     notes: s.notes,
     learning_tags: s.learningTags,
     ai_verdict: s.aiVerdict,
@@ -79,6 +80,7 @@ function fromDb(row) {
     exitPrice: row.exit_price,
     pnl: row.pnl,
     outcome: row.outcome,
+    outcomeData: row.outcome_data ?? null,
     notes: row.notes,
     learningTags: row.learning_tags,
     aiVerdict: row.ai_verdict,
@@ -251,10 +253,9 @@ router.post('/', authMiddleware, async (req, res) => {
 
 // PATCH /journal/:id
 router.patch('/:id', authMiddleware, async (req, res) => {
-  const { outcome, exitPrice, notes, actualEntry, actualExit, holdingPeriod } = req.body;
+  const { outcome, exitPrice, notes, actualEntry, actualExit, holdingPeriod, outcomeData } = req.body;
 
   try {
-    // Fetch existing to verify ownership and compute pnl
     const { data: existing, error: fetchErr } = await supabase
       .from('journal_sessions')
       .select('*')
@@ -270,10 +271,34 @@ router.patch('/:id', authMiddleware, async (req, res) => {
     }
 
     const patch = { updated_at: new Date().toISOString() };
-    if (outcome       !== undefined) patch.outcome = outcome;
     if (notes         !== undefined) patch.notes = notes;
     if (actualEntry   !== undefined) patch.actual_entry = actualEntry;
     if (holdingPeriod !== undefined) patch.holding_period = holdingPeriod;
+    if (outcomeData   !== undefined) patch.outcome_data = outcomeData;
+
+    // Derive outcome label from outcomeData when present
+    if (outcomeData !== undefined) {
+      const isTake = session.decision === 'Take';
+      if (isTake) {
+        const resultMap = {
+          hit_target:   'Win',
+          manual_exit:  'Win',
+          stopped_out:  'Loss',
+          open:         'Open',
+        };
+        patch.outcome = resultMap[outcomeData.result] ?? outcome ?? session.outcome;
+      } else {
+        // Skip / Watch
+        const dirMap = {
+          yes:       session.decision ?? 'Skip', // right to skip/watch
+          no:        'Missed',
+          too_early: 'Open',
+        };
+        patch.outcome = dirMap[outcomeData.decisionCorrect] ?? session.outcome;
+      }
+    } else if (outcome !== undefined) {
+      patch.outcome = outcome;
+    }
 
     if (actualExit !== undefined) {
       patch.actual_exit = actualExit;
