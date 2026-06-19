@@ -1,8 +1,9 @@
 # Feature: Macro & Sector Context Logging
 
-**Status:** Backlog — design finalized, not yet built  
-**Priority:** Medium  
-**Depends on:** Trade outcome logging (must exist first)
+**Status:** Superseded — see `journal-phase2.md`
+
+This feature has been merged into the Journal Phase 2 build alongside outcome tracking. The full design, data model, and build order are documented there.
+
 
 ---
 
