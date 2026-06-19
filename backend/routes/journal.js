@@ -238,9 +238,12 @@ router.post('/', authMiddleware, async (req, res) => {
   });
 
   try {
+    const insertRecord = { ...record };
+    delete insertRecord.outcome_data; // column added via migration; omit until it exists
+
     const { data, error } = await supabase
       .from('journal_sessions')
-      .insert(record)
+      .insert(insertRecord)
       .select('*')
       .single();
 
@@ -274,7 +277,7 @@ router.patch('/:id', authMiddleware, async (req, res) => {
     if (notes         !== undefined) patch.notes = notes;
     if (actualEntry   !== undefined) patch.actual_entry = actualEntry;
     if (holdingPeriod !== undefined) patch.holding_period = holdingPeriod;
-    if (outcomeData   !== undefined) patch.outcome_data = outcomeData;
+    if (outcomeData   !== undefined) patch.outcome_data = outcomeData; // requires migration: ALTER TABLE journal_sessions ADD COLUMN outcome_data JSONB;
 
     // Derive outcome label from outcomeData when present
     if (outcomeData !== undefined) {
