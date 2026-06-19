@@ -77,6 +77,9 @@ export default function Analyse() {
   const [entry,        setEntry]        = useState('');
   const [sl,           setSl]           = useState('');
   const [target,       setTarget]       = useState('');
+  const [skipEntry,    setSkipEntry]    = useState('');
+  const [skipSL,       setSkipSL]       = useState('');
+  const [skipTarget,   setSkipTarget]   = useState('');
   const [loading,      setLoading]      = useState(false);
   const [result,       setResult]       = useState(null);
   const [savedSession, setSavedSession] = useState(null);
@@ -88,8 +91,9 @@ export default function Analyse() {
     setSequence(s => s.map(r => r.day === day ? { ...r, [field]: val } : r));
   }
 
-  const rrr    = useMemo(() => calcRRR(entry, sl, target), [entry, sl, target]);
-  const rrrOk  = rrr !== null && rrr >= 1.5;
+  const rrr       = useMemo(() => calcRRR(entry, sl, target), [entry, sl, target]);
+  const rrrOk     = rrr !== null && rrr >= 1.5;
+  const skipRRR   = useMemo(() => calcRRR(skipEntry, skipSL, skipTarget), [skipEntry, skipSL, skipTarget]);
   const locked = !!result;
 
   const canSubmit = useMemo(() => {
@@ -138,6 +142,9 @@ export default function Analyse() {
       plannedSL:     decision === 'Take' ? parseFloat(sl)     : null,
       plannedTarget: decision === 'Take' ? parseFloat(target) : null,
       plannedRRR:    decision === 'Take' ? rrr                : null,
+      userEntry:     decision !== 'Take' ? (parseFloat(skipEntry)  || null) : null,
+      userSL:        decision !== 'Take' ? (parseFloat(skipSL)     || null) : null,
+      userTarget:    decision !== 'Take' ? (parseFloat(skipTarget) || null) : null,
     };
 
     const fd = new FormData();
@@ -185,6 +192,9 @@ export default function Analyse() {
     setEntry('');
     setSl('');
     setTarget('');
+    setSkipEntry('');
+    setSkipSL('');
+    setSkipTarget('');
     setResult(null);
     setSavedSession(null);
     setError(null);
@@ -454,6 +464,28 @@ export default function Analyse() {
               )}
             </div>
           )}
+
+          {(decision === 'Skip' || decision === 'Watch') && (
+            <div className={styles.takeExpansion}>
+              <p className={styles.optionalLevelsHint}>
+                Optional — enter your estimated levels so the AI can compare against its own read
+              </p>
+              <div className={styles.grid3}>
+                <NumberField label="Entry price" value={skipEntry}
+                  onChange={v => !locked && setSkipEntry(v)} placeholder="₹" mono />
+                <NumberField label="Stop loss" value={skipSL}
+                  onChange={v => !locked && setSkipSL(v)} placeholder="₹" mono />
+                <NumberField label="Target" value={skipTarget}
+                  onChange={v => !locked && setSkipTarget(v)} placeholder="₹" mono />
+              </div>
+              {skipRRR !== null && (
+                <div className={`${styles.rrrDisplay} ${skipRRR >= 1.5 ? styles.rrrGood : styles.rrrBad}`}>
+                  <span className={styles.rrrLabel}>RRR</span>
+                  <span className={styles.rrrValue}>{skipRRR.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+          )}
         </section>
 
         {error && <div className={styles.error}>{error}</div>}
@@ -553,6 +585,11 @@ function ConfBadge({ c }) {
 function VerdictBadge({ v }) {
   const cls = v === 'TAKE' ? 'badge-green' : v === 'SKIP' ? 'badge-red' : 'badge-amber';
   return <span className={`badge ${cls}`}>{v}</span>;
+}
+
+function ConvictionBadge({ c }) {
+  const cls = c === 'STRONG' ? 'badge-green' : 'badge-amber';
+  return <span className={`badge ${cls}`}>{c}</span>;
 }
 
 function AIRow({ label, value, conf, sub }) {
@@ -655,10 +692,14 @@ function AIResponseDisplay({ analysis }) {
         <div className="section-label">My Decision</div>
         <div className={styles.decisionDisplay}>
           <VerdictBadge v={myDecision?.verdict} />
+          {myDecision?.conviction && <ConvictionBadge c={myDecision.conviction} />}
           <p className={styles.decisionDisplayReason}>{myDecision?.reasoning}</p>
         </div>
-        {myDecision?.verdict === 'TAKE' && myDecision?.entry != null && (
+        {(myDecision?.verdict === 'TAKE' || myDecision?.verdict === 'WATCH') && myDecision?.entry != null && (
           <div className={styles.levelsTable}>
+            {myDecision?.verdict === 'WATCH' && (
+              <p className={styles.watchLevelsNote}>Qualifying levels — conditions under which this setup would trigger</p>
+            )}
             <LevelRow label="Entry"     value={myDecision.entry}    note={myDecision.entryReasoning} />
             <LevelRow label="Stop Loss" value={myDecision.stopLoss} note={myDecision.slReasoning} />
             <LevelRow label="Target"    value={myDecision.target}   note={myDecision.targetReasoning} />
@@ -673,7 +714,39 @@ function AIResponseDisplay({ analysis }) {
             )}
           </div>
         )}
+        {myDecision?.verdict === 'WATCH' && myDecision?.watchReason && (
+          <p className={styles.watchReason}>{myDecision.watchReason}</p>
+        )}
       </section>
+
+      {/* 3b — 8-Step Checklist */}
+      {myDecision?.checklistResults?.length > 0 && (
+        <section className="card">
+          <div className="section-label">8-Step Checklist</div>
+          <div className={styles.checklist}>
+            {myDecision.checklistResults.map(item => {
+              const cls = item.knockout
+                ? styles.checkKnockout
+                : !item.passed
+                ? styles.checkFail
+                : item.borderline
+                ? styles.checkBorderline
+                : styles.checkPass;
+              const icon = item.knockout ? '✗' : !item.passed ? '✗' : item.borderline ? '~' : '✓';
+              return (
+                <div key={item.step} className={`${styles.checkItem} ${cls}`}>
+                  <div className={styles.checkItemHeader}>
+                    <span className={styles.checkStep}>{item.step}</span>
+                    <span className={styles.checkLabel}>{item.label}</span>
+                    <span className={styles.checkStatus}>{icon}</span>
+                  </div>
+                  {item.note && <p className={styles.checkNote}>{item.note}</p>}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* 4 — Where You Went Wrong (only if non-empty) */}
       {whereYouWentWrong?.length > 0 && (

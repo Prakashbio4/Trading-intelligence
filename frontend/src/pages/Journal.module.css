@@ -387,7 +387,7 @@
 }
 .checkY { font-size: 13px; font-weight: 700; color: var(--accent); flex-shrink: 0; padding-top: 1px; }
 .checkN { font-size: 13px; font-weight: 700; color: var(--danger); flex-shrink: 0; padding-top: 1px; }
-.checkLabel { font-size: 13px; color: var(--text); }
+.checkLabel { font-size: 13px; color: var(--text); flex: 1; }
 .checkNote  { font-size: 12px; color: var(--muted); line-height: 1.45; margin-top: 2px; }
 
 /* Proposed levels */
@@ -714,3 +714,77 @@
   gap: var(--sp-3);
   justify-content: flex-end;
 }
+
+/* ── WATCH verdict notes ── */
+.watchReason {
+  font-size: 13px;
+  color: var(--amber);
+  line-height: 1.6;
+  padding: var(--sp-2) var(--sp-3);
+  background: rgba(245, 158, 11, 0.05);
+  border-left: 3px solid var(--amber);
+  border-radius: var(--radius);
+}
+.watchLevelsNote {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--amber);
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+/* ── 8-Step Checklist (new unified) ── */
+.checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.checkItem {
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--radius);
+  border-left: 3px solid transparent;
+}
+.checkPass      { background: rgba(200, 241, 53, 0.05); border-left-color: var(--accent); }
+.checkBorderline{ background: rgba(245, 158, 11, 0.05); border-left-color: var(--amber); }
+.checkFail      { background: rgba(239, 68, 68, 0.05);  border-left-color: var(--danger); }
+.checkKnockout  { background: rgba(239, 68, 68, 0.10);  border-left-color: var(--danger); border-left-width: 4px; }
+
+.checkItemHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.checkStep {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.checkPass .checkStep       { background: rgba(200,241,53,0.12); color: var(--accent); }
+.checkBorderline .checkStep { background: rgba(245,158,11,0.12); color: var(--amber); }
+.checkFail .checkStep,
+.checkKnockout .checkStep   { background: rgba(239,68,68,0.12);  color: var(--danger); }
+
+.checkStatus {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.checkPass .checkStatus       { color: var(--accent); }
+.checkBorderline .checkStatus { color: var(--amber); }
+.checkFail .checkStatus,
+.checkKnockout .checkStatus   { color: var(--danger); }

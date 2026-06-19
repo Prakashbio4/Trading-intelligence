@@ -256,10 +256,21 @@ function AIReadUnified({ session }) {
               d.verdict === 'TAKE' ? styles.verdictWordTrade :
               d.verdict === 'SKIP' ? styles.verdictWordPass  : styles.verdictWordWatch
             }`}>{d.verdict}</span>
+            {d.conviction && (
+              <span className={`badge ${d.conviction === 'STRONG' ? 'badge-green' : 'badge-amber'}`}>
+                {d.conviction}
+              </span>
+            )}
           </div>
           {d.reasoning && <p className={styles.verdictReason}>{d.reasoning}</p>}
-          {d.verdict === 'TAKE' && d.entry != null && (
+          {d.verdict === 'WATCH' && d.watchReason && (
+            <p className={styles.watchReason}>{d.watchReason}</p>
+          )}
+          {(d.verdict === 'TAKE' || d.verdict === 'WATCH') && d.entry != null && (
             <div className={styles.levelCells} style={{ marginTop: 12 }}>
+              {d.verdict === 'WATCH' && (
+                <span className={styles.watchLevelsNote}>Qualifying levels</span>
+              )}
               <div className={styles.levelCell}>
                 <span className={styles.levelKey}>Entry</span>
                 <span className="mono">₹{d.entry}</span>
@@ -278,6 +289,35 @@ function AIReadUnified({ session }) {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* 8-Step Checklist */}
+      {d?.checklistResults?.length > 0 && (
+        <div className={styles.block}>
+          <SectionHead>8-Step Checklist</SectionHead>
+          <div className={styles.checklist}>
+            {d.checklistResults.map(item => {
+              const cls = item.knockout
+                ? styles.checkKnockout
+                : !item.passed
+                ? styles.checkFail
+                : item.borderline
+                ? styles.checkBorderline
+                : styles.checkPass;
+              const icon = item.knockout ? '✗' : !item.passed ? '✗' : item.borderline ? '~' : '✓';
+              return (
+                <div key={item.step} className={`${styles.checkItem} ${cls}`}>
+                  <div className={styles.checkItemHeader}>
+                    <span className={styles.checkStep}>{item.step}</span>
+                    <span className={styles.checkLabel}>{item.label}</span>
+                    <span className={styles.checkStatus}>{icon}</span>
+                  </div>
+                  {item.note && <p className={styles.checkNote}>{item.note}</p>}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

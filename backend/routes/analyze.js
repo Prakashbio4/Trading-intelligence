@@ -31,7 +31,9 @@ RULES:
 9. "No pattern identified" is always a valid and complete answer. Never force a weak pattern.
 10. The "whereYouWentWrong" array only fires on genuine disagreements. If the user's read is correct, return an empty array. No filler.
 11. Corrections are ranked by trading significance: wrong stop loss > wrong pattern > wrong RSI read.
-12. When deciding TAKE, propose specific price levels with structural reasoning. Do not give round numbers without justification.
+12. When deciding TAKE or WATCH, propose specific price levels with structural reasoning. Do not give round numbers without justification.
+13. Apply a 5% real-market tolerance to all quantitative thresholds (except the hard 4% S&R-vs-SL rule in Step 4 and the 1.2 RRR hard floor in Step 7). Values within 5% of a threshold are borderline — flag explicitly rather than treating as a hard failure.
+14. For WATCH verdicts, still propose entry / stopLoss / target / rrr if calculable — these represent the conditions under which the setup would qualify.
 
 TRADINGVIEW CHART READING — WHERE TO READ INDICATOR VALUES:
 TradingView charts display values in TWO places:
@@ -50,7 +52,25 @@ Practical tolerances:
 - Doji: body up to 5% of high-low range = Clean, up to 10% = Acceptable.
 - Morning Star / Evening Star: Day 3 closes 50%+ into Day 1 body = ideal, 40–50% = Borderline.
 - Harami: Day 2 body within Day 1. Within 110% = Borderline.
-Always state what the ideal would be and how much the actual pattern deviates.`;
+Always state what the ideal would be and how much the actual pattern deviates.
+
+EVALUATION CHECKLIST — 8-STEP SEQUENTIAL FRAMEWORK:
+Evaluate every setup through all 8 steps. Populate myDecision.checklistResults with one entry per step. Hard knockouts must be flagged even when the overall verdict is not SKIP.
+
+Step 1 — PATTERN STRENGTH: Identifiable pattern? Rate quality using the candlestick tolerances above. Note deviations from ideal. Not a standalone knockout.
+Step 2 — PRIOR TREND: Bullish pattern requires prior downtrend; bearish requires prior uptrend. Clearly wrong prior trend weighs heavily toward SKIP.
+Step 3 — VOLUME: Must be ≥ 10-day average (use right-side panel value vs displayed SMA). Within 5% = borderline confirmed. Clearly below = fail.
+Step 4 — S&R vs STOPLOSS ALIGNMENT: Compute |S&R − stoploss| / stoploss × 100. Above 4% → passed: false, knockout: true. Prefer user-provided levels; use chart estimates when not provided but flag uncertainty.
+Step 5 — DOW PATTERNS: Identify double/triple tops/bottoms, flags, range breakouts. Supporting or contradicting the trigger?
+Step 6 — PRIMARY & SECONDARY TREND: Both established and aligned with the trade direction?
+Step 7 — RRR: (Target − Entry) / (Entry − SL). Below 1.2 → passed: false, knockout: true. Between 1.2–1.5 → borderline. Prefer user-provided levels; estimate from chart when not provided.
+Step 8 — MACD & RSI CONFIRMATION (confirmatory only — never drives verdict alone): If steps 1–7 all pass cleanly AND both indicators confirm direction → conviction = "STRONG". Otherwise → conviction = "STANDARD".
+
+VERDICT RULES:
+TAKE: Steps 1–7 pass (borderline flags allowed). RRR ≥ 1.5.
+WATCH: 1–2 steps are borderline/marginal, or a Dow pattern is forming but unconfirmed, or RRR is 1.2–1.5. Populate watchReason and provide estimated levels.
+SKIP: Any hard knockout (Step 4 or 7 with knockout: true and passed: false), prior trend clearly wrong, or three or more soft fails stacked.`;
+
 
 async function uploadToSupabase(buffer, mimetype, userId) {
   const ext = mimetype.split('/')[1] || 'png';
@@ -100,6 +120,7 @@ router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
     narrative,
     decision, confidence,
     plannedEntry, plannedSL, plannedTarget, plannedRRR,
+    userEntry, userSL, userTarget,
   } = formData;
 
   const pCandles = Array.isArray(patternCandles) ? patternCandles : [];
@@ -120,9 +141,13 @@ router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
       }).join('\n')
     : '  None provided';
 
+  const hasOptionalLevels = userEntry || userSL || userTarget;
   const userDecisionBlock = decision === 'Take'
     ? `Decision: TAKE (Confidence: ${confidence})
 Entry: ${plannedEntry}  SL: ${plannedSL}  Target: ${plannedTarget}  RRR: ${plannedRRR}`
+    : hasOptionalLevels
+    ? `Decision: ${decision?.toUpperCase() || 'NOT SET'} (Confidence: ${confidence})
+User-provided levels (optional, for comparison): Entry: ${userEntry || 'not provided'}  SL: ${userSL || 'not provided'}  Target: ${userTarget || 'not provided'}`
     : `Decision: ${decision?.toUpperCase() || 'NOT SET'} (Confidence: ${confidence})`;
 
   const prompt = `Analyse the chart image. The user submitted their read BEFORE seeing any AI analysis. Form your own independent view first, then compare.
@@ -184,6 +209,18 @@ Respond with ONLY valid JSON matching this exact schema:
   },
   "myDecision": {
     "verdict": "TAKE|SKIP|WATCH",
+    "conviction": "STRONG|STANDARD",
+    "watchReason": "",
+    "checklistResults": [
+      { "step": 1, "label": "Pattern Strength", "passed": true, "borderline": false, "knockout": false, "note": "" },
+      { "step": 2, "label": "Prior Trend", "passed": true, "borderline": false, "knockout": false, "note": "" },
+      { "step": 3, "label": "Volume", "passed": true, "borderline": false, "knockout": false, "note": "" },
+      { "step": 4, "label": "S&R vs SL Alignment", "passed": true, "borderline": false, "knockout": false, "note": "" },
+      { "step": 5, "label": "Dow Patterns", "passed": true, "borderline": false, "knockout": false, "note": "" },
+      { "step": 6, "label": "Primary & Secondary Trend", "passed": true, "borderline": false, "knockout": false, "note": "" },
+      { "step": 7, "label": "RRR", "passed": true, "borderline": false, "knockout": false, "note": "" },
+      { "step": 8, "label": "MACD & RSI Confirmation", "passed": true, "borderline": false, "knockout": false, "note": "" }
+    ],
     "reasoning": "",
     "entry": null,
     "stopLoss": null,
@@ -201,8 +238,11 @@ Respond with ONLY valid JSON matching this exact schema:
 
 IMPORTANT:
 - whereYouWentWrong must be an empty array [] if there are no genuine errors in the user's read.
-- myDecision.entry / stopLoss / target / rrr are null if verdict is SKIP or WATCH.
-- userLevelComparison is empty string if verdict is not TAKE or if user did not submit levels.
+- myDecision.entry / stopLoss / target / rrr are null only if verdict is SKIP. For WATCH, populate these if calculable (they represent qualifying conditions). For TAKE they are always required.
+- userLevelComparison compares AI levels vs any user-provided levels (plannedEntry/SL/Target for TAKE, userEntry/SL/Target for SKIP or WATCH). Empty string if no user levels were submitted.
+- conviction is always "STRONG" or "STANDARD" — never omit it. STRONG requires steps 1–7 all clean AND both MACD and RSI confirming; STANDARD otherwise.
+- watchReason is an empty string unless verdict is WATCH — then it must explain specifically which step(s) are borderline or unconfirmed.
+- checklistResults must contain exactly 8 entries in order (steps 1–8). Set passed: false AND knockout: true only for hard knockouts (Step 4 >4% S&R-vs-SL gap, Step 7 RRR <1.2). Set borderline: true (with passed still true) for values within 5% of thresholds.
 - candlePattern assesses the trigger pattern as a whole unit. For multi-candle patterns (Engulfing, Morning Star etc.) evaluate whether the pattern meets quality thresholds: did the engulfing candle fully cover? Did the Morning Star confirmation close deep enough? Apply the tolerances from your CANDLESTICK READING rules.
 - For multi-candle patterns, candlePattern.name should be the pattern name (not the individual candle type of Day 0).
 - candleSequence.interpretation must explain the arc across pattern candles AND context candles combined.
