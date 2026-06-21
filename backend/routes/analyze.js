@@ -260,7 +260,7 @@ IMPORTANT:
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: SYSTEM,
       messages: [{
         role: 'user',
@@ -273,7 +273,7 @@ IMPORTANT:
 
     const raw = stripFences(message.content[0].text);
     const { ok, data, message: parseMsg } = parseOrError(raw, 'Analyse');
-    if (!ok) return res.status(502).json({ error: 'AI returned malformed JSON', detail: parseMsg });
+    if (!ok) return res.status(502).json({ error: 'AI returned malformed JSON', detail: parseMsg, raw: raw.slice(0, 500) });
 
     res.json({
       analysis: data,
