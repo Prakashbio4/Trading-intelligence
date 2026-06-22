@@ -104,3 +104,28 @@
   color: var(--danger);
   border-color: var(--danger);
 }
+
+@media (max-width: 640px) {
+  .header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 0 16px;
+    gap: 0;
+  }
+  .brand {
+    flex: 1;
+    padding: 10px 0;
+  }
+  .brandSub { display: none; }
+  .nav {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 0 8px;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .userArea { padding: 10px 0; }
+  .username { display: none; }
+}
