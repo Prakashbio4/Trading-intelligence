@@ -714,3 +714,31 @@
 .lcDiffGood { color: var(--accent); font-family: var(--font-mono); font-size: 12px; text-align: right; font-weight: 600; }
 .lcDiffWarn { color: var(--amber);  font-family: var(--font-mono); font-size: 12px; text-align: right; font-weight: 600; }
 .lcDiffBad  { color: var(--danger); font-family: var(--font-mono); font-size: 12px; text-align: right; font-weight: 600; }
+
+@media (max-width: 640px) {
+  .page { padding: var(--sp-5) var(--sp-4); }
+
+  /* Collapse multi-column grids to single column */
+  .grid2, .grid3 { grid-template-columns: 1fr; }
+
+  /* Candle sequence table — horizontal scroll */
+  .seqTable { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .seqHeader, .seqRow { min-width: 340px; }
+
+  /* Narrow label column in AI response grid */
+  .aiRowLabel { width: 80px; }
+
+  /* Full-width submit button */
+  .actions { justify-content: stretch; }
+  .actions > * { flex: 1; }
+
+  /* Levels comparison table — tighter columns */
+  .lcHeader, .lcRow { grid-template-columns: 48px 1fr 1fr 1fr; }
+
+  /* Confidence row — allow wrap */
+  .confidenceRow { flex-wrap: wrap; }
+
+  /* Decision row — stack vertically */
+  .decisionRow { flex-direction: column; gap: var(--sp-2); }
+  .decisionBtn { padding: var(--sp-3); }
+}

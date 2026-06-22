@@ -823,3 +823,36 @@
 .lcGood { color: var(--accent); }
 .lcWarn { color: var(--amber);  }
 .lcBad  { color: var(--danger); }
+
+@media (max-width: 640px) {
+  .page { padding: var(--sp-5) var(--sp-4); }
+
+  /* Table: keep min-width so columns don't collapse, outer wrap handles scroll */
+  .table { min-width: 560px; }
+
+  /* Modal as bottom sheet */
+  .overlay {
+    align-items: flex-end;
+    justify-content: stretch;
+    padding: 0;
+  }
+  .modal {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    max-height: 92dvh;
+    margin: 0;
+  }
+  .modalBody { padding: var(--sp-4); }
+  .modalHeader { padding: var(--sp-3) var(--sp-4); }
+
+  /* Single-column layouts */
+  .cols         { grid-template-columns: 1fr; }
+  .aiCols       { grid-template-columns: 1fr; }
+  .outcomeFields { grid-template-columns: 1fr; }
+
+  /* Level comparison rows — scrollable inside block */
+  .lcCompare { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .lcCompareRow { min-width: 300px; }
+
+  /* Reduce aiNote indent on mobile */
+  .aiNote { padding-left: 0; }
+}

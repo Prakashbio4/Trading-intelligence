@@ -141,3 +141,7 @@ input[type="number"] { font-family: var(--font-mono); }
   display: inline-block;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 640px) {
+  .card { padding: var(--sp-4); }
+}
