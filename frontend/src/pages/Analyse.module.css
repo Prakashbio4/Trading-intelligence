@@ -653,3 +653,64 @@
   margin-top: var(--sp-1);
   padding-left: 26px;
 }
+
+/* ── Side-by-side levels comparison ─────────────────────────────────────── */
+.lcWrap {
+  border-top: 1px solid var(--border);
+  padding-top: var(--sp-4);
+  margin-top: var(--sp-3);
+}
+.lcTitle {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  margin-bottom: var(--sp-3);
+}
+.lcTable {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lcHeader {
+  display: grid;
+  grid-template-columns: 64px 1fr 1fr 1fr;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-2) var(--sp-2);
+}
+.lcColHead {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-align: right;
+}
+.lcRow {
+  display: grid;
+  grid-template-columns: 64px 1fr 1fr 1fr;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  border-radius: var(--radius);
+  background: var(--surface2);
+}
+.lcLabel {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  align-self: center;
+}
+.lcVal {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  text-align: right;
+}
+.lcEmpty { color: var(--muted); text-align: right; font-family: var(--font-mono); font-size: 13px; }
+.lcDiffGood { color: var(--accent); font-family: var(--font-mono); font-size: 12px; text-align: right; font-weight: 600; }
+.lcDiffWarn { color: var(--amber);  font-family: var(--font-mono); font-size: 12px; text-align: right; font-weight: 600; }
+.lcDiffBad  { color: var(--danger); font-family: var(--font-mono); font-size: 12px; text-align: right; font-weight: 600; }

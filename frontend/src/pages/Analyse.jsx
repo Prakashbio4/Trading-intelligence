@@ -510,7 +510,16 @@ export default function Analyse() {
         {/* ── AI Response ──────────────────────────────────────────────── */}
         {result?.analysis && (
           <ErrorBoundary onReset={handleReset}>
-            <AIResponseDisplay analysis={result.analysis} />
+            <AIResponseDisplay
+              analysis={result.analysis}
+              userLevels={{
+                decision,
+                entry:  decision === 'Take' ? parseFloat(entry)      : parseFloat(skipEntry)  || null,
+                sl:     decision === 'Take' ? parseFloat(sl)          : parseFloat(skipSL)     || null,
+                target: decision === 'Take' ? parseFloat(target)      : parseFloat(skipTarget) || null,
+                rrr:    decision === 'Take' ? rrr                     : skipRRR,
+              }}
+            />
           </ErrorBoundary>
         )}
 
@@ -617,8 +626,27 @@ function LevelRow({ label, value, note }) {
   );
 }
 
-function AIResponseDisplay({ analysis }) {
+function pctDiff(user, ai) {
+  if (user == null || ai == null || ai === 0) return null;
+  return ((user - ai) / ai) * 100;
+}
+
+function DiffCell({ user, ai }) {
+  const diff = pctDiff(user, ai);
+  if (diff === null) return <span className={styles.lcEmpty}>—</span>;
+  const abs = Math.abs(diff);
+  const cls = abs <= 3 ? styles.lcDiffGood : abs <= 7 ? styles.lcDiffWarn : styles.lcDiffBad;
+  return (
+    <span className={cls}>
+      {diff >= 0 ? '+' : ''}{diff.toFixed(1)}%
+    </span>
+  );
+}
+
+function AIResponseDisplay({ analysis, userLevels }) {
   const { whatISee, narrativeIRead, myDecision, whereYouWentWrong } = analysis;
+  const hasUserLevels = userLevels?.entry != null;
+  const hasAILevels  = (myDecision?.verdict === 'TAKE' || myDecision?.verdict === 'WATCH') && myDecision?.entry != null;
 
   return (
     <div className={styles.aiWrap}>
@@ -695,7 +723,9 @@ function AIResponseDisplay({ analysis }) {
           {myDecision?.conviction && <ConvictionBadge c={myDecision.conviction} />}
           <p className={styles.decisionDisplayReason}>{myDecision?.reasoning}</p>
         </div>
-        {(myDecision?.verdict === 'TAKE' || myDecision?.verdict === 'WATCH') && myDecision?.entry != null && (
+
+        {/* AI's structural reasoning for levels */}
+        {hasAILevels && (
           <div className={styles.levelsTable}>
             {myDecision?.verdict === 'WATCH' && (
               <p className={styles.watchLevelsNote}>Qualifying levels — conditions under which this setup would trigger</p>
@@ -709,11 +739,42 @@ function AIResponseDisplay({ analysis }) {
                 {myDecision.rrr?.toFixed(2)}
               </span>
             </div>
-            {myDecision.userLevelComparison && (
-              <p className={styles.levelComparison}>{myDecision.userLevelComparison}</p>
-            )}
           </div>
         )}
+
+        {/* Side-by-side levels comparison */}
+        {hasUserLevels && hasAILevels && (
+          <div className={styles.lcWrap}>
+            <p className={styles.lcTitle}>Your levels vs AI's levels</p>
+            <div className={styles.lcTable}>
+              <div className={styles.lcHeader}>
+                <span />
+                <span className={styles.lcColHead}>Yours</span>
+                <span className={styles.lcColHead}>AI</span>
+                <span className={styles.lcColHead}>Diff</span>
+              </div>
+              {[
+                { label: 'Entry',   user: userLevels.entry,  ai: myDecision.entry },
+                { label: 'SL',      user: userLevels.sl,     ai: myDecision.stopLoss },
+                { label: 'Target',  user: userLevels.target, ai: myDecision.target },
+                { label: 'RRR',     user: userLevels.rrr,    ai: myDecision.rrr, isRRR: true },
+              ].map(({ label, user, ai, isRRR }) => (
+                <div key={label} className={styles.lcRow}>
+                  <span className={styles.lcLabel}>{label}</span>
+                  <span className={styles.lcVal}>{user != null ? (isRRR ? user.toFixed(2) : `₹${user}`) : '—'}</span>
+                  <span className={styles.lcVal}>{ai  != null ? (isRRR ? ai.toFixed(2)   : `₹${ai}`)  : '—'}</span>
+                  {isRRR
+                    ? <span className={Math.abs((user ?? 0) - (ai ?? 0)) <= 0.2 ? styles.lcDiffGood : styles.lcDiffWarn}>
+                        {user != null && ai != null ? `${user >= ai ? '+' : ''}${(user - ai).toFixed(2)}` : '—'}
+                      </span>
+                    : <DiffCell user={user} ai={ai} />
+                  }
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {myDecision?.verdict === 'WATCH' && myDecision?.watchReason && (
           <p className={styles.watchReason}>{myDecision.watchReason}</p>
         )}

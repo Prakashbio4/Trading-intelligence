@@ -267,27 +267,56 @@ function AIReadUnified({ session }) {
             <p className={styles.watchReason}>{d.watchReason}</p>
           )}
           {(d.verdict === 'TAKE' || d.verdict === 'WATCH') && d.entry != null && (
-            <div className={styles.levelCells} style={{ marginTop: 12 }}>
+            <>
               {d.verdict === 'WATCH' && (
-                <span className={styles.watchLevelsNote}>Qualifying levels</span>
+                <p className={styles.watchLevelsNote} style={{ marginTop: 8 }}>Qualifying levels</p>
               )}
-              <div className={styles.levelCell}>
-                <span className={styles.levelKey}>Entry</span>
-                <span className="mono">₹{d.entry}</span>
+              <div className={styles.levelCells} style={{ marginTop: 8 }}>
+                <div className={styles.levelCell}>
+                  <span className={styles.levelKey}>AI Entry</span>
+                  <span className="mono">₹{d.entry}</span>
+                </div>
+                <div className={styles.levelCell}>
+                  <span className={styles.levelKey}>AI SL</span>
+                  <span className="mono danger">₹{d.stopLoss}</span>
+                </div>
+                <div className={styles.levelCell}>
+                  <span className={styles.levelKey}>AI Target</span>
+                  <span className="mono accent">₹{d.target}</span>
+                </div>
+                <div className={styles.levelCell}>
+                  <span className={styles.levelKey}>AI RRR</span>
+                  <span className={`mono ${d.rrr >= 1.5 ? 'accent' : 'danger'}`}>{d.rrr}</span>
+                </div>
               </div>
-              <div className={styles.levelCell}>
-                <span className={styles.levelKey}>SL</span>
-                <span className="mono danger">₹{d.stopLoss}</span>
-              </div>
-              <div className={styles.levelCell}>
-                <span className={styles.levelKey}>Target</span>
-                <span className="mono accent">₹{d.target}</span>
-              </div>
-              <div className={styles.levelCell}>
-                <span className={styles.levelKey}>RRR</span>
-                <span className={`mono ${d.rrr >= 1.5 ? 'accent' : 'danger'}`}>{d.rrr}</span>
-              </div>
-            </div>
+              {/* Side-by-side comparison when user also had levels */}
+              {session.plannedEntry != null && (
+                <div className={styles.lcCompare}>
+                  <div className={styles.lcCompareRow}>
+                    <span className={styles.lcCompareHead} />
+                    <span className={styles.lcCompareHead}>Yours</span>
+                    <span className={styles.lcCompareHead}>AI</span>
+                  </div>
+                  {[
+                    { label: 'Entry',  user: session.plannedEntry,  ai: d.entry },
+                    { label: 'SL',     user: session.plannedSL,     ai: d.stopLoss },
+                    { label: 'Target', user: session.plannedTarget, ai: d.target },
+                    { label: 'RRR',    user: session.plannedRRR,    ai: d.rrr },
+                  ].map(({ label, user, ai }) => {
+                    const diff = ai && ai !== 0 ? ((user - ai) / ai) * 100 : null;
+                    const diffCls = diff === null ? '' : Math.abs(diff) <= 3 ? styles.lcGood : Math.abs(diff) <= 7 ? styles.lcWarn : styles.lcBad;
+                    return (
+                      <div key={label} className={styles.lcCompareRow}>
+                        <span className={styles.lcCompareLabel}>{label}</span>
+                        <span className="mono">{user ?? '—'}</span>
+                        <span className="mono">{ai  ?? '—'}</span>
+                        {diff !== null && <span className={`mono ${diffCls}`}>{diff >= 0 ? '+' : ''}{diff.toFixed(1)}%</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

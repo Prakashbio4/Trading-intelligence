@@ -788,3 +788,38 @@
 .checkBorderline .checkStatus { color: var(--amber); }
 .checkFail .checkStatus,
 .checkKnockout .checkStatus   { color: var(--danger); }
+
+/* ── Levels comparison table (in verdict block) ─────────────────────────── */
+.lcCompare {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lcCompareRow {
+  display: grid;
+  grid-template-columns: 52px 1fr 1fr 1fr;
+  gap: var(--sp-2);
+  padding: 3px 0;
+  font-size: 12px;
+}
+.lcCompareHead {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+  text-align: right;
+}
+.lcCompareLabel {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+.lcGood { color: var(--accent); }
+.lcWarn { color: var(--amber);  }
+.lcBad  { color: var(--danger); }

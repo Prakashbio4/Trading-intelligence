@@ -118,9 +118,6 @@ router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
     volumeVsAverage, volumeCharacter, macd, rsiValue, rsiDirection, bollingerBands,
     nearestSupport, nearestResistance, srConfidence,
     narrative,
-    decision, confidence,
-    plannedEntry, plannedSL, plannedTarget, plannedRRR,
-    userEntry, userSL, userTarget,
   } = formData;
 
   const pCandles = Array.isArray(patternCandles) ? patternCandles : [];
@@ -141,16 +138,7 @@ router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
       }).join('\n')
     : '  None provided';
 
-  const hasOptionalLevels = userEntry || userSL || userTarget;
-  const userDecisionBlock = decision === 'Take'
-    ? `Decision: TAKE (Confidence: ${confidence})
-Entry: ${plannedEntry}  SL: ${plannedSL}  Target: ${plannedTarget}  RRR: ${plannedRRR}`
-    : hasOptionalLevels
-    ? `Decision: ${decision?.toUpperCase() || 'NOT SET'} (Confidence: ${confidence})
-User-provided levels (optional, for comparison): Entry: ${userEntry || 'not provided'}  SL: ${userSL || 'not provided'}  Target: ${userTarget || 'not provided'}`
-    : `Decision: ${decision?.toUpperCase() || 'NOT SET'} (Confidence: ${confidence})`;
-
-  const prompt = `Analyse the chart image. The user submitted their read BEFORE seeing any AI analysis. Form your own independent view first, then compare.
+  const prompt = `Analyse the chart image. The user submitted their factual observations BEFORE seeing any AI analysis. Derive your verdict, levels, and checklist evaluation independently — you have NOT been told the user's decision, and it must not influence your output.
 
 USER'S READ:
 Ticker: ${ticker}  |  Date: ${date}  |  Lookback: ${lookbackWindow} sessions  |  Source: ${chartSource}
@@ -186,8 +174,6 @@ S&R confidence: ${srConfidence || 'Not specified'}
 
 NARRATIVE:
 ${narrative || 'Not provided'}
-
-${userDecisionBlock}
 
 Respond with ONLY valid JSON matching this exact schema:
 {
@@ -228,8 +214,7 @@ Respond with ONLY valid JSON matching this exact schema:
     "rrr": null,
     "entryReasoning": "",
     "slReasoning": "",
-    "targetReasoning": "",
-    "userLevelComparison": ""
+    "targetReasoning": ""
   },
   "whereYouWentWrong": [
     { "rank": 1, "field": "", "correction": "" }
@@ -237,9 +222,8 @@ Respond with ONLY valid JSON matching this exact schema:
 }
 
 IMPORTANT:
-- whereYouWentWrong must be an empty array [] if there are no genuine errors in the user's read.
-- myDecision.entry / stopLoss / target / rrr are null only if verdict is SKIP. For WATCH, populate these if calculable (they represent qualifying conditions). For TAKE they are always required.
-- userLevelComparison compares AI levels vs any user-provided levels (plannedEntry/SL/Target for TAKE, userEntry/SL/Target for SKIP or WATCH). Empty string if no user levels were submitted.
+- whereYouWentWrong must be an empty array [] if there are no genuine errors in the user's factual read (trend, pattern, volume, indicators, S&R). Do NOT flag the user's unstated decision.
+- myDecision.entry / stopLoss / target / rrr are null only if verdict is SKIP. For WATCH, populate these if calculable (qualifying conditions). For TAKE they are always required.
 - conviction is always "STRONG" or "STANDARD" — never omit it. STRONG requires steps 1–7 all clean AND both MACD and RSI confirming; STANDARD otherwise.
 - watchReason is an empty string unless verdict is WATCH — then it must explain specifically which step(s) are borderline or unconfirmed.
 - checklistResults must contain exactly 8 entries in order (steps 1–8). Set passed: false AND knockout: true only for hard knockouts (Step 4 >4% S&R-vs-SL gap, Step 7 RRR <1.2). Set borderline: true (with passed still true) for values within 5% of thresholds.
@@ -247,7 +231,7 @@ IMPORTANT:
 - For multi-candle patterns, candlePattern.name should be the pattern name (not the individual candle type of Day 0).
 - candleSequence.interpretation must explain the arc across pattern candles AND context candles combined.
 - If candleSequence.contradictsTrigger is true, rank the correction high in whereYouWentWrong and explain specifically what the sequence context changes about the trigger pattern's signal.
-- If fewer than 2 total candles are provided across pattern + context, set candleSequence.sequenceType to "No clear sequence" and confidence to "LOW".`;
+- If fewer than 2 total candles are provided across pattern + context, set candleSequence.sequenceType to "No clear sequence" and confidence to "LOW".
 
   try {
     let imagePath;
