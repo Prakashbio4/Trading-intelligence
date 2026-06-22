@@ -231,7 +231,7 @@ IMPORTANT:
 - For multi-candle patterns, candlePattern.name should be the pattern name (not the individual candle type of Day 0).
 - candleSequence.interpretation must explain the arc across pattern candles AND context candles combined.
 - If candleSequence.contradictsTrigger is true, rank the correction high in whereYouWentWrong and explain specifically what the sequence context changes about the trigger pattern's signal.
-- If fewer than 2 total candles are provided across pattern + context, set candleSequence.sequenceType to "No clear sequence" and confidence to "LOW".
+- If fewer than 2 total candles are provided across pattern + context, set candleSequence.sequenceType to "No clear sequence" and confidence to "LOW".`;
 
   try {
     let imagePath;
