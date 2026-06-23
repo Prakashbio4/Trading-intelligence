@@ -129,67 +129,21 @@ router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
 
   const {
     ticker, date, chartSource,
-    primaryTrend, trendDuration, stockPhase, chartStructure, opposingStructure,
-    patternName, patternCandles, contextCandles, priorTrendMatch,
-    volumeVsAverage, volumeCharacter, macd, rsiValue, rsiDirection, bollingerBands,
-    nearestSupport, nearestResistance, srConfidence,
-    narrative,
+    volumeVsAverage, volumeCharacter, macd, rsiValue, bollingerBands,
   } = formData;
 
-  const pCandles = Array.isArray(patternCandles) ? patternCandles : [];
-  const cCandles = Array.isArray(contextCandles) ? contextCandles : [];
-  const candleCount = pCandles.length || 1;
+  const prompt = `Analyse the chart image and derive your full assessment independently.
 
-  const patternText = pCandles.length
-    ? pCandles.map(c => {
-        const parts = [c.candleType, c.direction !== 'N/A' ? c.direction : null, c.quality].filter(Boolean);
-        return `  ${c.role} (Day ${c.day}): ${parts.join(' — ')}`;
-      }).join('\n')
-    : '  Not provided';
-
-  const contextText = cCandles.length
-    ? cCandles.map(c => {
-        const parts = [c.candleType, c.direction !== 'N/A' ? c.direction : null, c.quality].filter(Boolean);
-        return `  Day ${c.day}: ${parts.join(' — ')}`;
-      }).join('\n')
-    : '  None provided';
-
-  const prompt = `Analyse the chart image. The user submitted their factual observations BEFORE seeing any AI analysis. Derive your verdict, levels, and checklist evaluation independently — you have NOT been told the user's decision, and it must not influence your output.
-
-USER'S READ:
 Ticker: ${ticker}  |  Date: ${date}  |  Source: ${chartSource}
 
-TREND:
-Primary trend: ${primaryTrend}
-Duration: ${trendDuration}
-Stock phase: ${stockPhase || 'Not specified'}
-Chart structure: ${chartStructure}
-Opposing structure: ${opposingStructure || 'None'}
-
-TRIGGER PATTERN: ${patternName || 'Not specified'} (${candleCount === 1 ? 'single candle' : `${candleCount}-candle pattern`})
-Pattern candles (oldest → newest):
-${patternText}
-
-CONTEXT CANDLES (days before the pattern, optional):
-${contextText}
-
-Prior trend match (sequence overall): ${priorTrendMatch || 'N/A'}
-
-VOLUME & INDICATORS:
-Volume vs average: ${volumeVsAverage}
+INDICATOR READINGS (user-entered to help calibrate the right-panel values):
+Volume vs average: ${volumeVsAverage || 'Not provided'}
 Volume character: ${volumeCharacter || 'Not specified'}
-MACD: ${macd}
-RSI value: ${rsiValue || 'Not entered'}
-RSI direction: ${rsiDirection}
+MACD: ${macd || 'Not provided'}
+RSI: ${rsiValue || 'Not provided'}
 Bollinger bands: ${bollingerBands || 'Not specified'}
 
-S&R LEVELS:
-Support: ${nearestSupport || 'Not entered'}
-Resistance: ${nearestResistance || 'Not entered'}
-S&R confidence: ${srConfidence || 'Not specified'}
-
-NARRATIVE:
-${narrative || 'Not provided'}
+Read everything else directly from the chart image: candle pattern and quality, prior trend direction and duration, chart structure, S&R levels. Do not wait for user input on these — form your own independent view from what you see.
 
 Respond with ONLY valid JSON matching this exact schema:
 {
@@ -238,16 +192,15 @@ Respond with ONLY valid JSON matching this exact schema:
 }
 
 IMPORTANT:
-- whereYouWentWrong must be an empty array [] if there are no genuine errors in the user's factual read (trend, pattern, volume, indicators, S&R). Do NOT flag the user's unstated decision.
+- whereYouWentWrong: you only received the user's indicator readings (MACD, RSI, Volume, Bollinger Bands). Only flag a correction here if one of those indicator readings clearly contradicts what you see in the chart. Return [] if the readings match or are close. Do NOT fabricate corrections on fields the user did not provide.
 - myDecision.entry / stopLoss / target / rrr are null only if verdict is SKIP. For WATCH, populate these if calculable (qualifying conditions). For TAKE they are always required.
 - conviction is always "STRONG" or "STANDARD" — never omit it. STRONG requires steps 1–7 all clean AND both MACD and RSI confirming; STANDARD otherwise.
 - watchReason is an empty string unless verdict is WATCH — then it must explain specifically which step(s) are borderline or unconfirmed.
 - checklistResults must contain exactly 8 entries in order (steps 1–8). Set passed: false AND knockout: true only for hard knockouts (Step 4 >4% S&R-vs-SL gap, Step 7 RRR <1.2). Set borderline: true (with passed still true) for values within 5% of thresholds.
-- candlePattern assesses the trigger pattern as a whole unit. For multi-candle patterns (Engulfing, Morning Star etc.) evaluate whether the pattern meets quality thresholds: did the engulfing candle fully cover? Did the Morning Star confirmation close deep enough? Apply the tolerances from your CANDLESTICK READING rules.
+- candlePattern assesses the trigger pattern from the chart. For multi-candle patterns (Engulfing, Morning Star etc.) evaluate whether the pattern meets quality thresholds. Apply the tolerances from your CANDLESTICK READING rules.
 - For multi-candle patterns, candlePattern.name should be the pattern name (not the individual candle type of Day 0).
-- candleSequence.interpretation must explain the arc across pattern candles AND context candles combined.
-- If candleSequence.contradictsTrigger is true, rank the correction high in whereYouWentWrong and explain specifically what the sequence context changes about the trigger pattern's signal.
-- If fewer than 2 total candles are provided across pattern + context, set candleSequence.sequenceType to "No clear sequence" and confidence to "LOW".`;
+- candleSequence reads the last 5–7 candles from the left panel of the dual-panel chart. Describe the arc and whether the sequence supports or contradicts the trigger.
+- S&R levels in keyLevels must be grounded in prior swing pivots visible on either panel of the chart.`;
 
   try {
     let imagePath;
