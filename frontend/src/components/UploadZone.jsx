@@ -40,7 +40,7 @@ export default function UploadZone({ onFile, disabled }) {
         <div className={styles.prompt}>
           <span className={styles.icon}>↑</span>
           <span className={styles.label}>Drop chart here or click to upload</span>
-          <span className={styles.hint}>PNG / JPG from Kite or TradingView</span>
+          <span className={styles.hint}>Side-by-side screenshot — last 7–10 candles on the left, 1-year chart with indicators on the right</span>
         </div>
       )}
     </div>

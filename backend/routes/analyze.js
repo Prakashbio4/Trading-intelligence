@@ -35,12 +35,28 @@ RULES:
 13. Apply a 5% real-market tolerance to all quantitative thresholds (except the hard 4% S&R-vs-SL rule in Step 4 and the 1.2 RRR hard floor in Step 7). Values within 5% of a threshold are borderline — flag explicitly rather than treating as a hard failure.
 14. For WATCH verdicts, still propose entry / stopLoss / target / rrr if calculable — these represent the conditions under which the setup would qualify.
 
-TRADINGVIEW CHART READING — WHERE TO READ INDICATOR VALUES:
-TradingView charts display values in TWO places:
-  (a) TOP-LEFT LEGEND: Shows values at the cursor/crosshair position — this reflects wherever the mouse was when the screenshot was taken, NOT the current bar.
-  (b) RIGHT-SIDE PANEL (values pinned against the right price/scale axis): Shows the LAST TRADED / MOST RECENT bar's values — this is always current and accurate.
+CHART LAYOUT — STANDARD DUAL-PANEL SCREENSHOT:
+The uploaded chart image uses a standard dual-panel format. Apply each panel with its specific purpose:
 
-ALWAYS read indicator values (Volume, RSI, MACD, Bollinger Bands, SMAs, ATR, Oscillators, etc.) from the RIGHT-SIDE PANEL only. Ignore the top-left legend values entirely when they differ from the right-side values. If the right-side panel is not visible or truncated, state LOW confidence rather than falling back to the legend.
+  LEFT PANEL — Last 7–10 daily candles with volume:
+    - Assess the trigger candle pattern (Step 1): body/shadow ratios, colour, size against the tolerances below
+    - Read volume on the trigger candle vs the displayed SMA line (Step 3)
+    - Read the candle sequence in detail (roles, quality of each candle)
+    - Use for precise S&R level reading near the current price
+
+  RIGHT PANEL — ~1-year daily chart with trend indicators (Bollinger Bands, RSI, MACD):
+    - Establish the primary and secondary trend direction and duration (Steps 2, 6)
+    - Identify Dow patterns at the broader scale — double tops/bottoms, flags, base formations (Step 5)
+    - Read Bollinger Band position (is price at upper/lower band? band width expanding or contracting?)
+    - Read RSI and MACD confirmation (Step 8) — always use the right-side pinned values
+    - Identify S&R levels from prior swing highs/lows visible on the longer timeframe
+
+INDICATOR VALUES — RIGHT-SIDE PANEL RULE:
+TradingView displays values in TWO places:
+  (a) TOP-LEFT LEGEND: Values at the cursor position when the screenshot was taken — NOT the current bar.
+  (b) RIGHT-SIDE PANEL (values pinned against the right axis): Most recent bar's values — always current and accurate.
+
+ALWAYS read indicator values (RSI, MACD, Bollinger Bands, Volume SMA, EMAs) from the RIGHT-SIDE PANEL only. Ignore top-left legend values when they differ. If the right panel is obscured, state LOW confidence rather than falling back to the legend.
 
 CANDLESTICK READING — REAL MARKET APPROACH:
 Textbook-perfect patterns are rare. Assess quality on a spectrum: Textbook clean / Acceptable / Borderline / Weak.
@@ -112,7 +128,7 @@ router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
   }
 
   const {
-    ticker, date, lookbackWindow, chartSource,
+    ticker, date, chartSource,
     primaryTrend, trendDuration, stockPhase, chartStructure, opposingStructure,
     patternName, patternCandles, contextCandles, priorTrendMatch,
     volumeVsAverage, volumeCharacter, macd, rsiValue, rsiDirection, bollingerBands,
@@ -141,7 +157,7 @@ router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
   const prompt = `Analyse the chart image. The user submitted their factual observations BEFORE seeing any AI analysis. Derive your verdict, levels, and checklist evaluation independently — you have NOT been told the user's decision, and it must not influence your output.
 
 USER'S READ:
-Ticker: ${ticker}  |  Date: ${date}  |  Lookback: ${lookbackWindow} sessions  |  Source: ${chartSource}
+Ticker: ${ticker}  |  Date: ${date}  |  Source: ${chartSource}
 
 TREND:
 Primary trend: ${primaryTrend}

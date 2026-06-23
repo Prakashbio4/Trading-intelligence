@@ -27,7 +27,6 @@ function patternMeta(triggerPattern) {
 }
 import styles from './Analyse.module.css';
 
-const LOOKBACK      = [1, 2, 3, 4, 5];
 const CHART_SOURCES = ['Kite', 'TradingView', 'Chartink', 'Other'];
 const DECISIONS     = ['Take', 'Skip', 'Watch'];
 const CONFIDENCE    = ['High', 'Medium', 'Low'];
@@ -36,7 +35,6 @@ function initForm() {
   return {
     ticker: '',
     date: new Date().toISOString().split('T')[0],
-    lookbackWindow: 3,
     chartSource: '',
     primaryTrend: '',
     trendDuration: '',
@@ -215,18 +213,6 @@ export default function Analyse() {
         <section className="card">
           <div className="section-label">Chart</div>
           <UploadZone onFile={setChartFile} disabled={locked || loading} />
-          <div className={styles.lookbackRow}>
-            <span className={styles.lookbackLabel}>Lookback window</span>
-            {LOOKBACK.map(n => (
-              <button
-                key={n} type="button"
-                disabled={locked}
-                className={`${styles.lookbackBtn} ${form.lookbackWindow === n ? styles.lookbackActive : ''}`}
-                onClick={() => set('lookbackWindow', n)}
-              >{n}</button>
-            ))}
-            <span className={styles.lookbackUnit}>sessions</span>
-          </div>
         </section>
 
         {/* ── Context ──────────────────────────────────────────────────── */}
