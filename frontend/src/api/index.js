@@ -1,5 +1,10 @@
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+export async function pingHealth() {
+  const res = await fetch(`${BASE}/health`);
+  return res.json();
+}
+
 function authHeaders(extra = {}) {
   const token = localStorage.getItem('sipy_token');
   return {

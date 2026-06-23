@@ -4,7 +4,7 @@ import Analyse from './pages/Analyse.jsx';
 import Journal from './pages/Journal.jsx';
 import Insights from './pages/Insights.jsx';
 import Login from './pages/Login.jsx';
-import { getMe } from './api/index.js';
+import { getMe, pingHealth } from './api/index.js';
 import styles from './App.module.css';
 
 const PAGES = { analyse: Analyse, journal: Journal, insights: Insights };
@@ -15,6 +15,9 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
+    // Ping backend immediately so Railway wakes up before the user needs it
+    pingHealth().catch(() => {});
+
     const token = localStorage.getItem('sipy_token');
     if (!token) {
       setAuthChecked(true);

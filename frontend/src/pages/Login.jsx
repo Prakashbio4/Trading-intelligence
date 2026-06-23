@@ -2,6 +2,21 @@ import { useState } from 'react';
 import { login } from '../api/index.js';
 import styles from './Login.module.css';
 
+async function loginWithRetry(username, attempts = 3) {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await login(username);
+    } catch (err) {
+      const isNetworkErr = err.message === 'Failed to fetch' || err.message?.includes('NetworkError');
+      if (isNetworkErr && i < attempts - 1) {
+        await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
@@ -18,12 +33,15 @@ export default function Login({ onLogin }) {
 
     setLoading(true);
     try {
-      const data = await login(trimmed);
+      const data = await loginWithRetry(trimmed);
       localStorage.setItem('sipy_token', data.token);
       localStorage.setItem('sipy_username', data.user.username);
       onLogin(data.user);
     } catch (err) {
-      setError(err.message || 'Login failed. Try again.');
+      const isNetwork = err.message === 'Failed to fetch' || err.message?.includes('NetworkError');
+      setError(isNetwork
+        ? 'Server is starting up — please wait a moment and try again.'
+        : (err.message || 'Login failed. Try again.'));
     } finally {
       setLoading(false);
     }
