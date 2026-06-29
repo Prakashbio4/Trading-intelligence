@@ -108,6 +108,18 @@ export async function deleteSessions(ids) {
   return handleResponse(res);
 }
 
+export async function uploadOutcomeImages(id, { entryChart, exitChart }) {
+  const fd = new FormData();
+  if (entryChart) fd.append('entryChart', entryChart);
+  if (exitChart)  fd.append('exitChart',  exitChart);
+  const res = await fetch(`${BASE}/journal/${id}/images`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: fd,
+  });
+  return handleResponse(res);
+}
+
 export async function sendChatMessage(id, message) {
   const res = await fetch(`${BASE}/journal/${id}/chat`, {
     method: 'POST',

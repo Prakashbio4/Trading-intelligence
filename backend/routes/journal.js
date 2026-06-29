@@ -1,7 +1,28 @@
 const express = require('express');
+const multer = require('multer');
 const Anthropic = require('@anthropic-ai/sdk');
 const supabase = require('../lib/supabase');
 const authMiddleware = require('../middleware/auth');
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Only image files are allowed'));
+  },
+});
+
+async function uploadToSupabase(buffer, mimetype, userId) {
+  const ext = mimetype.split('/')[1] || 'png';
+  const filename = `${userId}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from('chart-images')
+    .upload(filename, buffer, { contentType: mimetype, upsert: false });
+  if (error) throw error;
+  const { data } = supabase.storage.from('chart-images').getPublicUrl(filename);
+  return data.publicUrl;
+}
 
 const router = express.Router();
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -86,6 +107,8 @@ function fromDb(row) {
     aiVerdict: row.ai_verdict,
     chatHistory: row.chat_history,
     userId: row.user_id,
+    outcomeChartEntry: row.outcome_chart_entry,
+    outcomeChartExit: row.outcome_chart_exit,
   };
 }
 
@@ -411,6 +434,53 @@ If there are fewer than 5 sessions, note that the sample is too small for reliab
   }
 });
 
+// POST /journal/:id/images — upload entry/exit candle screenshots
+router.post('/:id/images', authMiddleware, upload.fields([
+  { name: 'entryChart', maxCount: 1 },
+  { name: 'exitChart',  maxCount: 1 },
+]), async (req, res) => {
+  try {
+    const { data: existing, error: fetchErr } = await supabase
+      .from('journal_sessions')
+      .select('id, user_id')
+      .eq('id', req.params.id)
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+    if (!existing) return res.status(404).json({ error: 'Session not found' });
+    if (req.user.role !== 'superuser' && existing.user_id !== req.user.userId) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const patch = { updated_at: new Date().toISOString() };
+
+    if (req.files?.entryChart?.[0]) {
+      const f = req.files.entryChart[0];
+      patch.outcome_chart_entry = await uploadToSupabase(f.buffer, f.mimetype, req.user.userId);
+    }
+    if (req.files?.exitChart?.[0]) {
+      const f = req.files.exitChart[0];
+      patch.outcome_chart_exit = await uploadToSupabase(f.buffer, f.mimetype, req.user.userId);
+    }
+
+    if (Object.keys(patch).length === 1) {
+      return res.status(400).json({ error: 'No images provided' });
+    }
+
+    const { data, error } = await supabase
+      .from('journal_sessions')
+      .update(patch)
+      .eq('id', req.params.id)
+      .select('*')
+      .single();
+
+    if (error) throw error;
+    res.json(fromDb(data));
+  } catch (err) {
+    res.status(500).json({ error: 'Could not upload images', detail: err.message });
+  }
+});
+
 // POST /journal/:id/chat
 router.post('/:id/chat', authMiddleware, async (req, res) => {
   const { message } = req.body;
@@ -438,19 +508,22 @@ router.post('/:id/chat', authMiddleware, async (req, res) => {
 
   const history = (session.chatHistory ?? []).map(m => ({ role: m.role, content: m.content }));
 
-  // Load chart image from URL (Supabase Storage public URL)
+  // Load chart images from Supabase Storage (original + outcome candle screenshots)
   const imageContent = [];
-  if (session.imagePath && session.imagePath.startsWith('http')) {
+  async function fetchImage(url) {
+    if (!url || !url.startsWith('http')) return;
     try {
-      const resp = await fetch(session.imagePath);
-      if (resp.ok) {
-        const buffer = await resp.arrayBuffer();
-        const contentType = resp.headers.get('content-type') || 'image/png';
-        const data = Buffer.from(buffer).toString('base64');
-        imageContent.push({ type: 'image', source: { type: 'base64', media_type: contentType, data } });
-      }
+      const resp = await fetch(url);
+      if (!resp.ok) return;
+      const buffer = await resp.arrayBuffer();
+      const contentType = resp.headers.get('content-type') || 'image/png';
+      const data = Buffer.from(buffer).toString('base64');
+      imageContent.push({ type: 'image', source: { type: 'base64', media_type: contentType, data } });
     } catch { /* skip if image unavailable */ }
   }
+  await fetchImage(session.imagePath);
+  await fetchImage(session.outcomeChartEntry);
+  await fetchImage(session.outcomeChartExit);
 
   const aiContext = session.aiWhatISee
     ? [
@@ -467,13 +540,14 @@ router.post('/:id/chat', authMiddleware, async (req, res) => {
     ? JSON.stringify(session.formData, null, 2)
     : JSON.stringify(session.userInput, null, 2);
 
+  const hasOutcomeCharts = session.outcomeChartEntry || session.outcomeChartExit;
   const systemPrompt = `You are a technical analysis educator reviewing a chart with a student.
 
 You already analysed this chart and gave the student the verdict below. The student is now asking follow-up questions about YOUR analysis.
 When answering, refer back to what you said — your own trend read, your candle pattern call, your decision, your levels. Own your analysis.
 Be specific — reference visible price levels, candle shapes, indicator readings, and anything else you can see in the chart image.
 Explain your reasoning clearly so the student understands the "why", not just the "what".
-Do not give buy or sell recommendations. Keep answers focused and educational.
+Do not give buy or sell recommendations. Keep answers focused and educational.${hasOutcomeCharts ? '\n\nThe student has uploaded additional candle screenshots showing the chart at entry and/or what happened after the trade. Use these to give detailed feedback on whether the setup played out as expected, what the market actually did, and what the student can learn from the difference between the setup and the outcome.' : ''}
 
 SESSION CONTEXT:
 Ticker: ${session.ticker}

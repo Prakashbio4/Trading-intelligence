@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { getSessions, updateSession, deleteSession, deleteSessions } from '../api/index.js';
+import { useState, useEffect, useRef } from 'react';
+import { getSessions, updateSession, deleteSession, deleteSessions, uploadOutcomeImages } from '../api/index.js';
 import ChatPanel from '../components/ChatPanel.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import styles from './Journal.module.css';
@@ -448,6 +448,114 @@ function AIReadLegacyM3({ aiAnalysis }) {
   );
 }
 
+// ── Candle screenshot uploader ────────────────────────────────────────────────
+
+function CandleUploadSlot({ label, hint, existingUrl, onFile, file }) {
+  const inputRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
+
+  const preview = file ? URL.createObjectURL(file) : existingUrl;
+
+  function handleFile(f) {
+    if (!f || !f.type.startsWith('image/')) return;
+    onFile(f);
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    setDragging(false);
+    handleFile(e.dataTransfer.files[0]);
+  }
+
+  return (
+    <div className={styles.candleSlot}>
+      <span className={styles.fieldLabel}>{label}</span>
+      {hint && <span className={styles.candleSlotHint}>{hint}</span>}
+      <div
+        className={`${styles.candleZone} ${dragging ? styles.candleZoneDragging : ''}`}
+        onClick={() => inputRef.current?.click()}
+        onDragOver={e => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={e => handleFile(e.target.files[0])}
+        />
+        {preview ? (
+          <img src={preview} alt={label} className={styles.candlePreview} />
+        ) : (
+          <div className={styles.candleZonePrompt}>
+            <span className={styles.candleZoneIcon}>↑</span>
+            <span className={styles.candleZoneLabel}>Drop or click to upload</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CandleUploadSection({ session, onSaved }) {
+  const [entryFile,  setEntryFile]  = useState(null);
+  const [exitFile,   setExitFile]   = useState(null);
+  const [uploading,  setUploading]  = useState(false);
+  const [uploadErr,  setUploadErr]  = useState(null);
+
+  const hasChanges = entryFile || exitFile;
+
+  async function handleUpload() {
+    if (!hasChanges) return;
+    setUploading(true);
+    setUploadErr(null);
+    try {
+      const updated = await uploadOutcomeImages(session.id, { entryChart: entryFile, exitChart: exitFile });
+      onSaved(updated);
+      setEntryFile(null);
+      setExitFile(null);
+    } catch (err) {
+      setUploadErr(err.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className={styles.candleSection}>
+      <SectionHead>Candle Screenshots</SectionHead>
+      <p className={styles.contextHint}>
+        Upload chart screenshots so the AI can learn from your trade setup and what actually happened.
+      </p>
+      <div className={styles.candleSlots}>
+        <CandleUploadSlot
+          label="Entry chart"
+          hint="Chart at the time you took (or passed on) the trade"
+          existingUrl={session.outcomeChartEntry}
+          file={entryFile}
+          onFile={setEntryFile}
+        />
+        <CandleUploadSlot
+          label="Post-trade chart"
+          hint="Chart showing what happened after the trade"
+          existingUrl={session.outcomeChartExit}
+          file={exitFile}
+          onFile={setExitFile}
+        />
+      </div>
+      {uploadErr && <p className={styles.uploadErr}>{uploadErr}</p>}
+      {hasChanges && (
+        <div className={styles.outcomeFooter}>
+          <button className="btn btn-primary" onClick={handleUpload} disabled={uploading}>
+            {uploading ? 'Uploading…' : 'Upload charts'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Outcome editor ────────────────────────────────────────────────────────────
 
 function SmallSelect({ value, onChange, children, placeholder }) {
@@ -460,6 +568,7 @@ function SmallSelect({ value, onChange, children, placeholder }) {
 }
 
 function OutcomeEditor({ session, onSaved }) {
+  // onSaved is passed to both the outcome save and the candle upload
   const isTake    = session.decision === 'Take';
   const existing  = session.outcomeData ?? {};
 
@@ -640,6 +749,8 @@ function OutcomeEditor({ session, onSaved }) {
           {saving ? 'Saving…' : 'Save outcome'}
         </button>
       </div>
+
+      <CandleUploadSection session={session} onSaved={onSaved} />
     </div>
   );
 }
