@@ -108,7 +108,11 @@ function fromDb(row) {
     chatHistory: row.chat_history,
     userId: row.user_id,
     outcomeChartEntry: row.outcome_chart_entry,
-    outcomeChartExit: row.outcome_chart_exit,
+    outcomeChartExit:  row.outcome_chart_exit,
+    priceT3:     row.price_t3,
+    priceT5:     row.price_t5,
+    priceT10:    row.price_t10,
+    outcomeAuto: row.outcome_auto ?? {},
   };
 }
 

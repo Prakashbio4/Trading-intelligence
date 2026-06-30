@@ -1,9 +1,10 @@
 import styles from './Nav.module.css';
 
 const TABS = [
-  { id: 'analyse',  label: 'Analyse',  sub: null },
-  { id: 'journal',  label: 'Journal',  sub: null },
-  { id: 'insights', label: 'Insights', sub: null },
+  { id: 'analyse',  label: 'Analyse'  },
+  { id: 'journal',  label: 'Journal'  },
+  { id: 'insights', label: 'Insights' },
+  { id: 'setups',   label: 'Missed Setups' },
 ];
 
 export default function Nav({ active, onNavigate, user, onLogout }) {
@@ -21,7 +22,6 @@ export default function Nav({ active, onNavigate, user, onLogout }) {
             onClick={() => onNavigate(tab.id)}
           >
             {tab.label}
-            {tab.sub && <span className={styles.tabSub}>{tab.sub}</span>}
           </button>
         ))}
       </nav>

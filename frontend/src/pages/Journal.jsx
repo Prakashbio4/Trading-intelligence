@@ -1,8 +1,83 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getSessions, updateSession, deleteSession, deleteSessions, uploadOutcomeImages } from '../api/index.js';
 import ChatPanel from '../components/ChatPanel.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import styles from './Journal.module.css';
+
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+function authHdr() {
+  const t = localStorage.getItem('sipy_token');
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+// ── OHLC Candle Window viewer ─────────────────────────────────────────────────
+
+function OhlcWindow({ ticker, date }) {
+  const [candles, setCandles] = useState(null);
+  const [error,   setError]   = useState('');
+
+  useEffect(() => {
+    if (!ticker || !date) return;
+    fetch(`${BASE}/universe/${ticker}/window?date=${date}&windowSize=7`, { headers: authHdr() })
+      .then(r => r.json())
+      .then(data => setCandles(Array.isArray(data) ? data : []))
+      .catch(e => setError(e.message));
+  }, [ticker, date]);
+
+  if (error)          return null;
+  if (candles === null) return <p className={styles.ohlcLoading}>Loading price data…</p>;
+  if (!candles.length)  return null;
+
+  const W = 420, H = 160, PAD = 20, CW = 12;
+  const prices = candles.flatMap(c => [c.high, c.low]);
+  const minP = Math.min(...prices), maxP = Math.max(...prices);
+  const range = maxP - minP || 1;
+  const toY = p => PAD + ((maxP - p) / range) * (H - PAD * 2);
+  const slotW = (W - PAD * 2) / candles.length;
+
+  const ZONE_COLOR = { prior: null, pattern: '#f59e0b', aftermath: '#818cf8', today: '#6366f1' };
+
+  return (
+    <div className={styles.ohlcWrap}>
+      <div className={styles.ohlcHeader}>
+        <span className={styles.ohlcTitle}>7-Day Price Window</span>
+        <div className={styles.ohlcLegend}>
+          <span className={styles.legendDot} style={{ background: '#6b7280' }} /> Prior
+          <span className={styles.legendDot} style={{ background: '#f59e0b' }} /> Pattern
+          <span className={styles.legendDot} style={{ background: '#6366f1' }} /> Session day
+        </div>
+      </div>
+      <svg width={W} height={H} className={styles.ohlcChart}>
+        {candles.map((c, i) => {
+          const x = PAD + i * slotW + slotW / 2;
+          const bullish = c.close >= c.open;
+          const zoneColor = ZONE_COLOR[c.zone];
+          const color = zoneColor || (bullish ? '#22c55e' : '#ef4444');
+          const bodyTop = toY(Math.max(c.open, c.close));
+          const bodyBot = toY(Math.min(c.open, c.close));
+          const bodyH   = Math.max(bodyBot - bodyTop, 1.5);
+          return (
+            <g key={i}>
+              <line x1={x} y1={toY(c.high)} x2={x} y2={toY(c.low)} stroke={color} strokeWidth={1.5} />
+              <rect x={x - CW/2} y={bodyTop} width={CW} height={bodyH}
+                fill={bullish ? color : 'transparent'} stroke={color} strokeWidth={1.5} rx={1} />
+              <text x={x} y={H - 4} textAnchor="middle" fontSize={9} fill="#6b7280">
+                {c.date?.slice(5)}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      <div className={styles.ohlcPrices}>
+        {candles.map((c, i) => (
+          <div key={i} className={`${styles.ohlcPrice} ${c.zone === 'today' ? styles.ohlcToday : ''}`}>
+            <span className={styles.ohlcC}>₹{Number(c.close).toFixed(0)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const VERDICT_CLASS = {
   TRADE: 'badge-green', TAKE: 'badge-green',
@@ -739,6 +814,31 @@ function OutcomeEditor({ session, onSaved }) {
           className={styles.notesArea} rows={2} style={{ marginTop: 8 }} />
       </div>
 
+      {/* ── Auto price snapshots ── */}
+      {session.outcomeAuto && Object.keys(session.outcomeAuto).length > 0 && (
+        <div className={styles.autoOutcome}>
+          <SectionHead>Price Snapshots (Auto)</SectionHead>
+          <div className={styles.snapshotRow}>
+            {[3, 5, 10].map(n => {
+              const snap = session.outcomeAuto[`t${n}`];
+              if (!snap) return null;
+              const up = snap.pct_vs_entry >= 0;
+              return (
+                <div key={n} className={styles.snapshot}>
+                  <span className={styles.snapLabel}>T+{n}</span>
+                  <span className={`mono ${up ? 'accent' : 'danger'}`}>
+                    {up ? '+' : ''}{snap.pct_vs_entry}%
+                  </span>
+                  <span className={styles.snapPrice}>₹{Number(snap.price).toFixed(0)}</span>
+                  {snap.hit_target && <span className="badge badge-green">Target hit</span>}
+                  {snap.hit_sl     && <span className="badge badge-red">SL hit</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Notes (shared) ── */}
       <textarea value={notes} onChange={e => setNotes(e.target.value)}
         placeholder={isTake ? "What actually happened? Anything you'd do differently?" : 'Any other observations about this Skip/Watch decision?'}
@@ -823,6 +923,11 @@ function SessionDetail({ session, onClose, onUpdate, onDelete }) {
                   className={styles.chartImg}
                 />
               </div>
+            )}
+
+            {/* OHLC 7-day candle window */}
+            {session.ticker && session.date && (
+              <OhlcWindow ticker={session.ticker} date={session.date} />
             )}
 
             {/* Your Read — full width */}
