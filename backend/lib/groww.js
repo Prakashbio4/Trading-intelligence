@@ -38,10 +38,8 @@ async function getAccessToken() {
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-      'x-api-version': '1.0',
-      'x-request-id': crypto.randomUUID(),
     },
-    body: JSON.stringify({ key_type: 'totp', totp }),
+    body: JSON.stringify({ key_type: 'TOTP', totp }),
   });
 
   if (!res.ok) {
