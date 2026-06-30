@@ -68,6 +68,7 @@ async function fetchDailyOhlc(symbol, fromDate, toDate) {
     exchange: 'NSE',
     segment: 'CASH',
     trading_symbol: symbol,
+    groww_symbol: `NSE-${symbol}`,
     start_time: `${fromDate} 00:00:00`,
     end_time: `${toDate} 23:59:59`,
     interval_in_minutes: '1440',
