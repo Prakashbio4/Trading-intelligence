@@ -47,6 +47,7 @@ export const CANDLE_PATTERN_GROUPS = [
       'Bullish Engulfing', 'Bearish Engulfing',
       'Piercing Line', 'Dark Cloud Cover',
       'Bullish Harami', 'Bearish Harami',
+      'Tweezer Bottom', 'Tweezer Top',
     ],
   },
   {
@@ -54,6 +55,7 @@ export const CANDLE_PATTERN_GROUPS = [
     options: [
       'Morning Star', 'Evening Star',
       'Morning Doji Star', 'Evening Doji Star',
+      'Three White Soldiers', 'Three Black Crows',
     ],
   },
 ];
@@ -80,21 +82,27 @@ export const PATTERN_CANDLECOUNT = {
   'Bullish Engulfing': 2, 'Bearish Engulfing': 2,
   'Piercing Line': 2, 'Dark Cloud Cover': 2,
   'Bullish Harami': 2, 'Bearish Harami': 2,
+  'Tweezer Bottom': 2, 'Tweezer Top': 2,
   'Morning Star': 3, 'Evening Star': 3,
   'Morning Doji Star': 3, 'Evening Doji Star': 3,
+  'Three White Soldiers': 3, 'Three Black Crows': 3,
 };
 
 export const PATTERN_ROLES = {
-  'Bullish Engulfing':  ['Prior candle', 'Engulfing candle (today)'],
-  'Bearish Engulfing':  ['Prior candle', 'Engulfing candle (today)'],
-  'Piercing Line':      ['Bearish candle', 'Piercing candle (today)'],
-  'Dark Cloud Cover':   ['Bullish candle', 'Dark cloud candle (today)'],
-  'Bullish Harami':     ['Mother candle', 'Baby candle (today)'],
-  'Bearish Harami':     ['Mother candle', 'Baby candle (today)'],
-  'Morning Star':       ['Signal', 'Indecision', 'Confirmation (today)'],
-  'Evening Star':       ['Signal', 'Indecision', 'Reversal (today)'],
-  'Morning Doji Star':  ['Signal', 'Doji', 'Confirmation (today)'],
-  'Evening Doji Star':  ['Signal', 'Doji', 'Reversal (today)'],
+  'Bullish Engulfing':    ['Prior candle', 'Engulfing candle (today)'],
+  'Bearish Engulfing':    ['Prior candle', 'Engulfing candle (today)'],
+  'Piercing Line':        ['Bearish candle', 'Piercing candle (today)'],
+  'Dark Cloud Cover':     ['Bullish candle', 'Dark cloud candle (today)'],
+  'Bullish Harami':       ['Mother candle', 'Baby candle (today)'],
+  'Bearish Harami':       ['Mother candle', 'Baby candle (today)'],
+  'Tweezer Bottom':       ['First low', 'Matching low (today)'],
+  'Tweezer Top':          ['First high', 'Matching high (today)'],
+  'Morning Star':         ['Signal', 'Indecision', 'Confirmation (today)'],
+  'Evening Star':         ['Signal', 'Indecision', 'Reversal (today)'],
+  'Morning Doji Star':    ['Signal', 'Doji', 'Confirmation (today)'],
+  'Evening Doji Star':    ['Signal', 'Doji', 'Reversal (today)'],
+  'Three White Soldiers': ['First soldier', 'Second soldier', 'Third soldier (today)'],
+  'Three Black Crows':    ['First crow', 'Second crow', 'Third crow (today)'],
 };
 
 export const VOLUME_VS_AVG = [

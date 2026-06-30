@@ -542,11 +542,13 @@ function PatternCheck({ session }) {
   // Only render if at least one source has data
   if (!userPattern && !aiPattern && !talibNames.length) return null;
 
-  const norm = s => (s || '').toLowerCase().replace(/[\s_-]+/g, '');
+  const norm = s => (s || '').toLowerCase().replace(/[\s_()-]+/g, '');
 
   function matches(a, list) {
     if (!a || !list.length) return null;
-    return list.some(b => norm(a) === norm(b));
+    const na = norm(a);
+    // exact match or substring — handles "Spinning Top" matching "Spinning Top (Bullish)"
+    return list.some(b => { const nb = norm(b); return na === nb || nb.startsWith(na) || na.startsWith(nb); });
   }
 
   const userMatchesAi    = userPattern && aiPattern
