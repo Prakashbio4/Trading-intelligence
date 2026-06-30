@@ -101,8 +101,8 @@ function YourRead({ session }) {
       </div>
 
       <div className={styles.infoGroup}>
-        <Row label="Support"    value={sup    ? mono(`₹${sup}`)  : null} />
-        <Row label="Resistance" value={res    ? mono(`₹${res}`)  : null} />
+        <Row label="Support"    value={sup != null ? mono(`₹${lvl(sup)}`)  : null} />
+        <Row label="Resistance" value={res != null ? mono(`₹${lvl(res)}`)  : null} />
         <Row label="S&R conf."  value={srConf} />
       </div>
 
