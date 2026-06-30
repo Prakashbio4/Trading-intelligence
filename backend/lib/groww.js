@@ -70,7 +70,7 @@ async function fetchDailyOhlc(symbol, fromDate, toDate) {
     groww_symbol: `NSE-${symbol}`,
     start_time: `${fromDate} 00:00:00`,
     end_time: `${toDate} 23:59:59`,
-    candle_interval: 'DAY',
+    candle_interval: 'DAILY',
   });
 
   const res = await fetch(`${BASE_URL}/historical/candles?${params}`, {
