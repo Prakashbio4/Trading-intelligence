@@ -49,11 +49,11 @@ async function getAccessToken() {
   }
 
   const data = await res.json();
-  if (data.status !== 'SUCCESS') {
+  if (!data.token) {
     throw new Error(`Groww auth error: ${JSON.stringify(data)}`);
   }
 
-  _cachedToken = data.payload.access_token;
+  _cachedToken = data.token;
   _tokenFetchedAt = new Date().toISOString();
   return _cachedToken;
 }
