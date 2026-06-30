@@ -67,17 +67,15 @@ async function fetchDailyOhlc(symbol, fromDate, toDate) {
   const params = new URLSearchParams({
     exchange: 'NSE',
     segment: 'CASH',
-    groww_symbol: `NSE-${symbol}`,
+    trading_symbol: symbol,
     start_time: `${fromDate} 00:00:00`,
     end_time: `${toDate} 23:59:59`,
-    candle_interval: 'DAILY',
+    interval_in_minutes: '1440',
   });
 
   const res = await fetch(`${BASE_URL}/historical/candles?${params}`, {
     headers: {
       'Authorization': `Bearer ${token}`,
-      'X-API-VERSION': '1.0',
-      'Content-Type': 'application/json',
     },
   });
 
@@ -87,12 +85,12 @@ async function fetchDailyOhlc(symbol, fromDate, toDate) {
   }
 
   const data = await res.json();
-  if (data.status !== 'SUCCESS') {
-    throw new Error(`Groww OHLC error for ${symbol}: ${JSON.stringify(data)}`);
-  }
+  // Log raw response shape once for debugging
+  console.log(`[groww] OHLC response keys: ${Object.keys(data).join(', ')}`);
+  const candles = data.candles ?? data.payload?.candles ?? [];
 
   // Raw candle format: [timestamp_epoch_seconds, open, high, low, close, volume]
-  return (data.payload.candles || []).map(([ts, open, high, low, close, volume]) => ({
+  return candles.map(([ts, open, high, low, close, volume]) => ({
     date: new Date(ts * 1000).toISOString().split('T')[0],
     open:   Number(open),
     high:   Number(high),
