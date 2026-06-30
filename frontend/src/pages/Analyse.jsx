@@ -4,6 +4,16 @@ import ChatPanel from '../components/ChatPanel.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import { SelectField, NumberField, TextField, TextArea } from '../components/Field.jsx';
 import { analyzeUnified, saveSession } from '../api/index.js';
+
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+function autoAddToUniverse(ticker) {
+  const token = localStorage.getItem('sipy_token');
+  fetch(`${BASE}/universe`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ symbol: ticker }),
+  }).catch(() => {}); // fire-and-forget, ignore duplicate errors
+}
 import {
   TREND_OPTIONS, TREND_DURATION, STOCK_PHASE, CHART_STRUCTURE, OPPOSING_STRUCTURE,
   SINGLE_CANDLE_TYPES, CANDLE_PATTERN_GROUPS,
@@ -173,6 +183,7 @@ export default function Analyse() {
         aiCorrections: data.analysis?.whereYouWentWrong ?? [],
       });
       setSavedSession(saved);
+      autoAddToUniverse(payload.ticker);
     } catch (err) {
       setError(err.message);
     } finally {
