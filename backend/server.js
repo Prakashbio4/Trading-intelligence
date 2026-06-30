@@ -1,10 +1,13 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const cron = require('node-cron');
 
-const analyzeRouter = require('./routes/analyze');
-const journalRouter = require('./routes/journal');
-const authRouter    = require('./routes/auth');
+const analyzeRouter   = require('./routes/analyze');
+const journalRouter   = require('./routes/journal');
+const authRouter      = require('./routes/auth');
+const universeRouter  = require('./routes/universe');
+const { runFetchOhlc } = require('./jobs/fetchOhlc');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -25,13 +28,21 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-app.use('/auth',    authRouter);
-app.use('/analyze', analyzeRouter);
-app.use('/journal', journalRouter);
+app.use('/auth',     authRouter);
+app.use('/analyze',  analyzeRouter);
+app.use('/journal',  journalRouter);
+app.use('/universe', universeRouter);
 
 app.get('/health', (_req, res) =>
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 );
+
+// Nightly OHLC fetch — runs at 4:15 PM IST (market closes 3:30 PM, buffer for data lag)
+// Cron is in server local time — ensure server timezone is IST or adjust hour accordingly
+cron.schedule('15 16 * * 1-5', () => {
+  console.log('[cron] Triggering nightly OHLC fetch...');
+  runFetchOhlc().catch(err => console.error('[cron] OHLC fetch error:', err.message));
+}, { timezone: 'Asia/Kolkata' });
 
 app.listen(PORT, () => {
   console.log(`SIPY backend running on http://localhost:${PORT}`);
