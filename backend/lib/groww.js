@@ -40,7 +40,7 @@ async function getAccessToken() {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ key_type: 'TOTP', totp }),
+    body: JSON.stringify({ key_type: 'totp', totp }),
   });
 
   if (!res.ok) {
