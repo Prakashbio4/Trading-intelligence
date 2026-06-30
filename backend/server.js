@@ -8,6 +8,7 @@ const journalRouter   = require('./routes/journal');
 const authRouter      = require('./routes/auth');
 const universeRouter  = require('./routes/universe');
 const { runFetchOhlc } = require('./jobs/fetchOhlc');
+const { runPopulateOutcomes } = require('./jobs/populateOutcomes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -39,9 +40,15 @@ app.get('/health', (_req, res) =>
 
 // Nightly OHLC fetch — runs at 4:15 PM IST (market closes 3:30 PM, buffer for data lag)
 // Cron is in server local time — ensure server timezone is IST or adjust hour accordingly
+// Nightly pipeline: OHLC fetch at 4:15 PM IST, then outcome population at 4:45 PM IST
 cron.schedule('15 16 * * 1-5', () => {
   console.log('[cron] Triggering nightly OHLC fetch...');
   runFetchOhlc().catch(err => console.error('[cron] OHLC fetch error:', err.message));
+}, { timezone: 'Asia/Kolkata' });
+
+cron.schedule('45 16 * * 1-5', () => {
+  console.log('[cron] Triggering outcome population...');
+  runPopulateOutcomes().catch(err => console.error('[cron] Outcome population error:', err.message));
 }, { timezone: 'Asia/Kolkata' });
 
 app.listen(PORT, () => {

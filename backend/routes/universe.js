@@ -76,6 +76,56 @@ router.post('/fetch-now', async (_req, res) => {
   runFetchOhlc().catch(err => console.error('[universe] Manual fetch error:', err.message));
 });
 
+// GET /universe/:symbol/window — 7-day candle window around a session date
+// ?date=YYYY-MM-DD&patternStart=YYYY-MM-DD&patternEnd=YYYY-MM-DD&windowSize=7
+router.get('/:symbol/window', async (req, res) => {
+  const symbol       = req.params.symbol.toUpperCase();
+  const sessionDate  = req.query.date;
+  const patternStart = req.query.patternStart;
+  const patternEnd   = req.query.patternEnd   || sessionDate;
+  const windowSize   = Math.min(parseInt(req.query.windowSize) || 7, 14);
+
+  if (!sessionDate) return res.status(400).json({ error: 'date is required' });
+
+  // Fetch enough candles before+after the session date
+  const from = new Date(sessionDate);
+  from.setDate(from.getDate() - (windowSize + 5));
+  const to = new Date(sessionDate);
+  to.setDate(to.getDate() + (windowSize + 5));
+
+  const { data, error } = await supabase
+    .from('ohlc_records')
+    .select('date, open, high, low, close, volume, vol_10day_avg, talib_patterns')
+    .eq('symbol', symbol)
+    .gte('date', from.toISOString().split('T')[0])
+    .lte('date', to.toISOString().split('T')[0])
+    .order('date', { ascending: true });
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Find session date index and slice windowSize candles ending on session date
+  const sessionIdx = data.findIndex(c => c.date === sessionDate);
+  if (sessionIdx === -1) return res.json([]);
+
+  const start = Math.max(0, sessionIdx - windowSize + 1);
+  const window = data.slice(start, sessionIdx + 1);
+
+  // Tag each candle with its zone
+  const tagged = window.map(c => {
+    let zone = 'prior';
+    if (patternStart && patternEnd) {
+      if (c.date >= patternStart && c.date <= patternEnd) zone = 'pattern';
+      else if (c.date === sessionDate) zone = 'today';
+      else if (patternEnd && c.date > patternEnd) zone = 'aftermath';
+    } else if (c.date === sessionDate) {
+      zone = 'today';
+    }
+    return { ...c, zone };
+  });
+
+  res.json(tagged);
+});
+
 // GET /universe/:symbol/ohlc — get stored OHLC + patterns for a symbol
 router.get('/:symbol/ohlc', async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();

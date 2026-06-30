@@ -593,4 +593,40 @@ ${aiContext}`;
   }
 });
 
+// GET /journal/missed-setups — patterns TA-Lib found but user didn't analyse
+router.get('/missed-setups', authMiddleware, async (req, res) => {
+  const days = Math.min(parseInt(req.query.days) || 30, 90);
+  const from = new Date();
+  from.setDate(from.getDate() - days);
+
+  const { data, error } = await supabase
+    .from('ohlc_records')
+    .select('symbol, date, close, talib_patterns')
+    .gte('date', from.toISOString().split('T')[0])
+    .neq('talib_patterns', '[]')
+    .order('date', { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  // Filter out dates where user already has a journal session for that ticker
+  const { data: sessions } = await supabase
+    .from('journal_sessions')
+    .select('ticker, date')
+    .eq('user_id', req.user.userId)
+    .gte('date', from.toISOString().split('T')[0]);
+
+  const analysed = new Set((sessions || []).map(s => `${s.ticker}|${s.date}`));
+
+  const missed = (data || [])
+    .filter(r => !analysed.has(`${r.symbol}|${r.date}`))
+    .map(r => ({
+      symbol:   r.symbol,
+      date:     r.date,
+      close:    r.close,
+      patterns: r.talib_patterns,
+    }));
+
+  res.json(missed);
+});
+
 module.exports = router;
