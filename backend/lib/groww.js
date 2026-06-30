@@ -33,13 +33,15 @@ async function getAccessToken() {
 
   const totp = speakeasy.totp({ secret: totpSecret, encoding: 'base32' });
 
+  // Try both JSON and form-encoded; log request for debugging
+  console.log(`[groww] auth attempt — totp=${totp} apiKeyLen=${apiKey.length}`);
   const res = await fetch(`${BASE_URL}/token/api/access`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: JSON.stringify({ key_type: 'TOTP', totp }),
+    body: new URLSearchParams({ key_type: 'TOTP', totp }).toString(),
   });
 
   if (!res.ok) {
