@@ -33,14 +33,14 @@ async function getAccessToken() {
 
   const totp = speakeasy.totp({ secret: totpSecret, encoding: 'base32' });
 
-  console.log(`[groww] auth attempt — totp=${totp} apiKeyLen=${apiKey.length}`);
+  console.log(`[groww] auth attempt — totp=${totp} apiKeyPrefix=${apiKey.slice(0,20)}`);
   const res = await fetch(`${BASE_URL}/token/api/access`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ totp }),
+    body: JSON.stringify({ key_type: 'totp', totp }),
   });
 
   if (!res.ok) {
