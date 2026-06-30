@@ -69,16 +69,6 @@ router.delete('/:symbol', async (req, res) => {
   res.json({ deleted: symbol });
 });
 
-// GET /universe/debug-totp — show generated TOTP (for debugging auth issues)
-router.get('/debug-totp', (_req, res) => {
-  const speakeasy = require('speakeasy');
-  const secret = process.env.GROWW_TOTP_SECRET;
-  if (!secret) return res.status(500).json({ error: 'GROWW_TOTP_SECRET not set' });
-  const totp = speakeasy.totp({ secret, encoding: 'base32' });
-  const serverTime = new Date().toISOString();
-  res.json({ totp, serverTime, secretLength: secret.length });
-});
-
 // POST /universe/fetch-now — manually trigger OHLC fetch for all active stocks
 router.post('/fetch-now', async (_req, res) => {
   const { runFetchOhlc } = require('../jobs/fetchOhlc');
