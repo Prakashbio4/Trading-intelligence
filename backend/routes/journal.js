@@ -65,6 +65,7 @@ function toDb(s) {
     ai_verdict: s.aiVerdict,
     chat_history: s.chatHistory,
     user_id: s.userId,
+    talib_patterns: s.talibPatterns ?? [],
   };
 }
 
@@ -109,10 +110,11 @@ function fromDb(row) {
     userId: row.user_id,
     outcomeChartEntry: row.outcome_chart_entry,
     outcomeChartExit:  row.outcome_chart_exit,
-    priceT3:     row.price_t3,
-    priceT5:     row.price_t5,
-    priceT10:    row.price_t10,
-    outcomeAuto: row.outcome_auto ?? {},
+    priceT3:        row.price_t3,
+    priceT5:        row.price_t5,
+    priceT10:       row.price_t10,
+    outcomeAuto:    row.outcome_auto ?? {},
+    talibPatterns:  row.talib_patterns ?? [],
   };
 }
 
@@ -275,6 +277,27 @@ router.post('/', authMiddleware, async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    // Attach talib patterns from ohlc_records for the same ticker + date
+    const sessionTicker = record.ticker?.toUpperCase();
+    const sessionDate   = record.date;
+    if (sessionTicker && sessionDate) {
+      const { data: ohlc } = await supabase
+        .from('ohlc_records')
+        .select('talib_patterns')
+        .eq('symbol', sessionTicker)
+        .eq('date', sessionDate)
+        .maybeSingle();
+
+      if (ohlc?.talib_patterns?.length) {
+        await supabase
+          .from('journal_sessions')
+          .update({ talib_patterns: ohlc.talib_patterns })
+          .eq('id', data.id);
+        data.talib_patterns = ohlc.talib_patterns;
+      }
+    }
+
     res.status(201).json(fromDb(data));
   } catch (err) {
     res.status(500).json({ error: 'Could not save session', detail: err.message });

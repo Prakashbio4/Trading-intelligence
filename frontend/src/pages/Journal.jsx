@@ -523,6 +523,100 @@ function AIReadLegacyM3({ aiAnalysis }) {
   );
 }
 
+// ── Pattern Check — 3-eye comparison ─────────────────────────────────────────
+// Compares what the user called, what the AI saw, and what the OHLC data says.
+
+function PatternCheck({ session }) {
+  const userPattern   = session.formData?.patternName || session.formData?.candlePattern;
+  const aiPattern     = session.aiWhatISee?.candlePattern?.name;
+  const talibRaw      = session.talibPatterns ?? [];
+
+  // talibRaw is an array of { name, bias, completionDate, … }
+  // Filter to just the patterns that completed on this session's date
+  const talibForDate  = talibRaw.filter(p =>
+    !p.completionDate || p.completionDate === session.date
+  );
+  const talibNames    = talibForDate.map(p => p.name);
+  const talibLabel    = talibNames.length > 0 ? talibNames.join(', ') : 'None detected';
+
+  // Only render if at least one source has data
+  if (!userPattern && !aiPattern && !talibNames.length) return null;
+
+  const norm = s => (s || '').toLowerCase().replace(/[\s_-]+/g, '');
+
+  function matches(a, list) {
+    if (!a || !list.length) return null;
+    return list.some(b => norm(a) === norm(b));
+  }
+
+  const userMatchesAi    = userPattern && aiPattern
+    ? norm(userPattern) === norm(aiPattern)
+    : null;
+  const userMatchesTalib = matches(userPattern, talibNames);
+  const aiMatchesTalib   = matches(aiPattern,   talibNames);
+
+  function Chip({ ok, label }) {
+    if (ok === null) return null;
+    return (
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '3px 10px',
+        borderRadius: 20,
+        fontSize: 12,
+        fontWeight: 500,
+        background: ok ? 'rgba(34,197,94,0.10)' : 'rgba(239,68,68,0.10)',
+        color:      ok ? '#22c55e' : '#ef4444',
+        border:     `1px solid ${ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+      }}>
+        {ok ? '✓' : '✗'} {label}
+      </span>
+    );
+  }
+
+  return (
+    <div className={styles.block}>
+      <SectionHead>Pattern Check — 3 Eyes</SectionHead>
+      <div className={styles.patternCheckGrid}>
+        <div className={styles.patternCheckCol}>
+          <span className={styles.patternCheckSource}>Your call</span>
+          <span className={styles.patternCheckName}>{userPattern || '—'}</span>
+        </div>
+        <div className={styles.patternCheckDivider} />
+        <div className={styles.patternCheckCol}>
+          <span className={styles.patternCheckSource}>AI saw</span>
+          <span className={styles.patternCheckName}>{aiPattern || '—'}</span>
+        </div>
+        <div className={styles.patternCheckDivider} />
+        <div className={styles.patternCheckCol}>
+          <span className={styles.patternCheckSource}>Data (talib)</span>
+          <span className={styles.patternCheckName}>{talibLabel}</span>
+          {talibForDate.map(p => p.bias).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).map(b => (
+            <span key={b} className={`badge badge-muted`} style={{ fontSize: 11, marginTop: 4 }}>
+              {b.replace(/_/g, ' ')}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className={styles.patternCheckChips}>
+        <Chip ok={userMatchesAi}    label="You & AI agree" />
+        <Chip ok={userMatchesTalib} label="Your read in data" />
+        <Chip ok={aiMatchesTalib}   label="AI read in data" />
+      </div>
+      {(userMatchesTalib === false || aiMatchesTalib === false) && (
+        <p className={styles.patternCheckNote}>
+          {userMatchesTalib === false && aiMatchesTalib === false
+            ? 'Neither your read nor the AI\'s matches what the data detected. The pattern may not meet the technical criteria, or this is a borderline case worth studying.'
+            : userMatchesTalib === false
+            ? 'The data didn\'t confirm your pattern call. Worth reviewing the exact criteria for this pattern.'
+            : 'The data didn\'t confirm the AI\'s pattern call. The AI may be reading the chart differently from the strict OHLC definition.'}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Candle screenshot uploader ────────────────────────────────────────────────
 
 function CandleUploadSlot({ label, hint, existingUrl, onFile, file }) {
@@ -932,6 +1026,9 @@ function SessionDetail({ session, onClose, onUpdate, onDelete }) {
 
             {/* Your Read — full width */}
             <YourRead session={session} />
+
+            {/* Pattern Check — 3-eye comparison */}
+            <PatternCheck session={session} />
 
             {/* AI Analysis — 2-column grid */}
             <ErrorBoundary resetLabel="Dismiss">
