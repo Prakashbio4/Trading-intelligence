@@ -18,7 +18,7 @@ import {
   TREND_OPTIONS, TREND_DURATION, STOCK_PHASE, CHART_STRUCTURE, OPPOSING_STRUCTURE,
   SINGLE_CANDLE_TYPES, CANDLE_PATTERN_GROUPS,
   PATTERN_DIRECTION, PATTERN_QUALITY, PRIOR_TREND_MATCH,
-  VOLUME_VS_AVG, VOLUME_CHARACTER, MACD_OPTIONS, RSI_OPTIONS, BOLLINGER_OPTIONS, SR_CONFIDENCE,
+  VOLUME_VS_AVG, VOLUME_CHARACTER, MACD_OPTIONS, RSI_OPTIONS, BOLLINGER_OPTIONS, SR_STRENGTH, SR_TIMEFRAME,
   PATTERN_CANDLECOUNT, PATTERN_ROLES,
 } from '../api/options.js';
 
@@ -60,7 +60,8 @@ function initForm() {
     bollingerBands: '',
     nearestSupport: '',
     nearestResistance: '',
-    srConfidence: '',
+    srStrength: '',
+    srTimeframe: '',
     narrative: '',
   };
 }
@@ -71,6 +72,47 @@ function calcRRR(entry, sl, target) {
   const t = parseFloat(target);
   if (!e || !s || !t || e === s) return null;
   return Math.round(((t - e) / (e - s)) * 100) / 100;
+}
+
+// ── S&R vs SL distance check (Varsity rule: must be within 4%) ───────────────
+
+function SRSlCheck({ support, resistance, sl, decision }) {
+  if (!sl || !decision || decision === 'Skip') return null;
+
+  const slVal  = parseFloat(sl);
+  const supVal = parseFloat(support);
+  const resVal = parseFloat(resistance);
+
+  const isLong  = decision === 'Take'; // long uses support, short uses resistance
+  const srLevel = isLong ? supVal : resVal;
+  const label   = isLong ? 'support' : 'resistance';
+
+  if (!srLevel || !slVal || srLevel <= 0 || slVal <= 0) return null;
+
+  const pct = Math.abs((slVal - srLevel) / srLevel) * 100;
+  const ok  = pct <= 4;
+
+  return (
+    <div style={{
+      marginTop: 12,
+      padding: '10px 14px',
+      borderRadius: 6,
+      background: ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+      border: `1px solid ${ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+      fontSize: 13,
+      color: ok ? '#22c55e' : '#ef4444',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+    }}>
+      <span>{ok ? '✓' : '✗'}</span>
+      <span>
+        SL {ok ? 'coincides with' : 'is too far from'} {label} —{' '}
+        <strong>{pct.toFixed(1)}%</strong> apart
+        {!ok && ' (Varsity rule: must be within 4% — disqualify this trade)'}
+      </span>
+    </div>
+  );
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
@@ -393,14 +435,22 @@ export default function Analyse() {
         {/* ── S&R ──────────────────────────────────────────────────────── */}
         <section className="card">
           <div className="section-label">Support & Resistance</div>
-          <div className={styles.grid3}>
+          <div className={styles.grid2}>
             <NumberField label="Nearest support" value={form.nearestSupport}
               onChange={v => !locked && set('nearestSupport', v)} placeholder="₹" mono />
             <NumberField label="Nearest resistance" value={form.nearestResistance}
               onChange={v => !locked && set('nearestResistance', v)} placeholder="₹" mono />
-            <SelectField label="S&R confidence" value={form.srConfidence}
-              onChange={v => !locked && set('srConfidence', v)} options={SR_CONFIDENCE} />
+            <SelectField label="S&R strength" value={form.srStrength}
+              onChange={v => !locked && set('srStrength', v)} options={SR_STRENGTH} />
+            <SelectField label="S&R timeframe" value={form.srTimeframe}
+              onChange={v => !locked && set('srTimeframe', v)} options={SR_TIMEFRAME} />
           </div>
+          <SRSlCheck
+            support={form.nearestSupport}
+            resistance={form.nearestResistance}
+            sl={sl}
+            decision={decision}
+          />
         </section>
 
         {/* ── Narrative ────────────────────────────────────────────────── */}

@@ -119,8 +119,19 @@ export const BOLLINGER_OPTIONS = [
   'Squeezing (narrow)', 'Beginning to expand', 'Wide', 'Normal', 'Cannot read',
 ];
 
-export const SR_CONFIDENCE = [
-  'Clear level', 'Moderate', 'Guessing', 'Cannot identify',
+export const SR_STRENGTH = [
+  '3+ price action zones, well spaced (strong)',
+  '2 price action zones',
+  '1 price action zone (weak)',
+  'Cannot identify',
 ];
+
+export const SR_TIMEFRAME = [
+  'Long term (12–18 months data)',
+  'Short term (3–6 months data)',
+];
+
+// kept for legacy reads
+export const SR_CONFIDENCE = SR_STRENGTH;
 
 export const DECISION_OPTIONS = ['Take', 'Skip', 'Watch'];
