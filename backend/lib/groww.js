@@ -1,6 +1,6 @@
 'use strict';
 
-const { authenticator } = require('otplib');
+const speakeasy = require('speakeasy');
 
 const BASE_URL = 'https://api.groww.in/v1';
 
@@ -31,7 +31,7 @@ async function getAccessToken() {
     throw new Error('GROWW_API_KEY and GROWW_TOTP_SECRET must be set in .env');
   }
 
-  const totp = authenticator.generate(totpSecret);
+  const totp = speakeasy.totp({ secret: totpSecret, encoding: 'base32' });
 
   const res = await fetch(`${BASE_URL}/token/api/access`, {
     method: 'POST',
