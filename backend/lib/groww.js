@@ -59,7 +59,7 @@ async function getAccessToken() {
 }
 
 // Fetch daily OHLC candles for a NSE symbol over a date range.
-// symbol: plain ticker e.g. "WIPRO" — we prefix "NSE-" internally
+// symbol: plain ticker e.g. "WIPRO"
 // fromDate / toDate: "YYYY-MM-DD" strings
 async function fetchDailyOhlc(symbol, fromDate, toDate) {
   const token = await getAccessToken();
@@ -68,16 +68,16 @@ async function fetchDailyOhlc(symbol, fromDate, toDate) {
     exchange: 'NSE',
     segment: 'CASH',
     trading_symbol: symbol,
-    groww_symbol: `NSE-${symbol}`,
     start_time: `${fromDate} 00:00:00`,
     end_time: `${toDate} 23:59:59`,
     interval_in_minutes: '1440',
-    candle_interval: '1440',
   });
 
-  const res = await fetch(`${BASE_URL}/historical/candles?${params}`, {
+  const res = await fetch(`${BASE_URL}/historical/candle/range?${params}`, {
     headers: {
       'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'X-API-VERSION': '1.0',
     },
   });
 
@@ -87,12 +87,12 @@ async function fetchDailyOhlc(symbol, fromDate, toDate) {
   }
 
   const data = await res.json();
-  // Log raw response shape once for debugging
-  console.log(`[groww] OHLC response keys: ${Object.keys(data).join(', ')}`);
-  const candles = data.candles ?? data.payload?.candles ?? [];
+  if (data.status !== 'SUCCESS') {
+    throw new Error(`Groww OHLC error for ${symbol}: ${JSON.stringify(data)}`);
+  }
 
   // Raw candle format: [timestamp_epoch_seconds, open, high, low, close, volume]
-  return candles.map(([ts, open, high, low, close, volume]) => ({
+  return (data.payload.candles || []).map(([ts, open, high, low, close, volume]) => ({
     date: new Date(ts * 1000).toISOString().split('T')[0],
     open:   Number(open),
     high:   Number(high),
