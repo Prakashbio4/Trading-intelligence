@@ -72,6 +72,7 @@ async function fetchDailyOhlc(symbol, fromDate, toDate) {
     start_time: `${fromDate} 00:00:00`,
     end_time: `${toDate} 23:59:59`,
     interval_in_minutes: '1440',
+    candle_interval: '1440',
   });
 
   const res = await fetch(`${BASE_URL}/historical/candles?${params}`, {
