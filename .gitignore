@@ -2,3 +2,7 @@
 .env
 **/.env
 .claude/
+
+# generated repo dumps / scratch
+codebase.txt
+structure.txt
