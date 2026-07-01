@@ -52,7 +52,7 @@ export default function Login({ onLogin }) {
       <div className={styles.card}>
         <div className={styles.brand}>
           <span className={styles.brandName}>SIPY</span>
-          <span className={styles.brandSub}>Capital</span>
+          <span className={styles.brandSub}>Wick</span>
         </div>
         <p className={styles.tagline}>Type your name to get started</p>
         <form onSubmit={handleSubmit} className={styles.form}>
