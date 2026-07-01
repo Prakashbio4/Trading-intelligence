@@ -56,6 +56,9 @@ function toDb(s) {
     actual_entry: s.actualEntry,
     actual_exit: s.actualExit,
     holding_period: s.holdingPeriod,
+    trade_entry_date: s.tradeEntryDate ?? null,
+    trade_exit_date:  s.tradeExitDate  ?? null,
+    quantity:         s.quantity        ?? null,
     exit_price: s.exitPrice,
     pnl: s.pnl,
     outcome: s.outcome,
@@ -99,6 +102,9 @@ function fromDb(row) {
     actualEntry: row.actual_entry,
     actualExit: row.actual_exit,
     holdingPeriod: row.holding_period,
+    tradeEntryDate: row.trade_entry_date ?? null,
+    tradeExitDate:  row.trade_exit_date  ?? null,
+    quantity:       row.quantity         ?? null,
     exitPrice: row.exit_price,
     pnl: row.pnl,
     outcome: row.outcome,
@@ -341,7 +347,8 @@ router.post('/', authMiddleware, async (req, res) => {
 
 // PATCH /journal/:id
 router.patch('/:id', authMiddleware, async (req, res) => {
-  const { outcome, exitPrice, notes, actualEntry, actualExit, holdingPeriod, outcomeData } = req.body;
+  const { outcome, exitPrice, notes, actualEntry, actualExit, holdingPeriod, outcomeData,
+          tradeEntryDate, tradeExitDate, quantity } = req.body;
 
   try {
     const { data: existing, error: fetchErr } = await supabase
@@ -359,10 +366,13 @@ router.patch('/:id', authMiddleware, async (req, res) => {
     }
 
     const patch = { updated_at: new Date().toISOString() };
-    if (notes         !== undefined) patch.notes = notes;
-    if (actualEntry   !== undefined) patch.actual_entry = actualEntry;
-    if (holdingPeriod !== undefined) patch.holding_period = holdingPeriod;
-    if (outcomeData   !== undefined) patch.outcome_data = outcomeData; // requires migration: ALTER TABLE journal_sessions ADD COLUMN outcome_data JSONB;
+    if (notes            !== undefined) patch.notes = notes;
+    if (actualEntry      !== undefined) patch.actual_entry = actualEntry;
+    if (holdingPeriod    !== undefined) patch.holding_period = holdingPeriod;
+    if (outcomeData      !== undefined) patch.outcome_data = outcomeData;
+    if (tradeEntryDate   !== undefined) patch.trade_entry_date = tradeEntryDate;
+    if (tradeExitDate    !== undefined) patch.trade_exit_date  = tradeExitDate;
+    if (quantity         !== undefined) patch.quantity = quantity;
 
     // Derive outcome label from outcomeData when present
     if (outcomeData !== undefined) {
@@ -392,11 +402,20 @@ router.patch('/:id', authMiddleware, async (req, res) => {
       patch.actual_exit = actualExit;
       patch.exit_price  = actualExit;
       const entry = actualEntry ?? session.actualEntry ?? session.plannedEntry;
-      if (entry != null) patch.pnl = parseFloat((actualExit - entry).toFixed(2));
+      const qty   = quantity   ?? session.quantity ?? 1;
+      if (entry != null) patch.pnl = parseFloat(((actualExit - entry) * qty).toFixed(2));
     } else if (exitPrice !== undefined) {
       patch.exit_price = exitPrice;
       const entry = session.actualEntry ?? session.plannedEntry;
-      if (entry != null) patch.pnl = parseFloat((exitPrice - entry).toFixed(2));
+      const qty   = quantity ?? session.quantity ?? 1;
+      if (entry != null) patch.pnl = parseFloat(((exitPrice - entry) * qty).toFixed(2));
+    } else if (quantity !== undefined) {
+      // quantity updated without a new exit price — recompute P&L if we have entry+exit
+      const exit  = session.actualExit ?? session.exitPrice;
+      const entry = session.actualEntry ?? session.plannedEntry;
+      if (exit != null && entry != null) {
+        patch.pnl = parseFloat(((exit - entry) * quantity).toFixed(2));
+      }
     }
 
     const { data, error } = await supabase

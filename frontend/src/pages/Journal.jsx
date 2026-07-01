@@ -670,21 +670,17 @@ function CandleUploadSlot({ label, hint, existingUrl, onFile, file }) {
 }
 
 function CandleUploadSection({ session, onSaved }) {
-  const [entryFile,  setEntryFile]  = useState(null);
   const [exitFile,   setExitFile]   = useState(null);
   const [uploading,  setUploading]  = useState(false);
   const [uploadErr,  setUploadErr]  = useState(null);
 
-  const hasChanges = entryFile || exitFile;
-
   async function handleUpload() {
-    if (!hasChanges) return;
+    if (!exitFile) return;
     setUploading(true);
     setUploadErr(null);
     try {
-      const updated = await uploadOutcomeImages(session.id, { entryChart: entryFile, exitChart: exitFile });
+      const updated = await uploadOutcomeImages(session.id, { exitChart: exitFile });
       onSaved(updated);
-      setEntryFile(null);
       setExitFile(null);
     } catch (err) {
       setUploadErr(err.message);
@@ -695,31 +691,24 @@ function CandleUploadSection({ session, onSaved }) {
 
   return (
     <div className={styles.candleSection}>
-      <SectionHead>Candle Screenshots</SectionHead>
+      <SectionHead>Post-Trade Chart</SectionHead>
       <p className={styles.contextHint}>
-        Upload chart screenshots so the AI can learn from your trade setup and what actually happened.
+        Upload a chart showing what happened after you made your decision.
       </p>
       <div className={styles.candleSlots}>
         <CandleUploadSlot
-          label="Entry chart"
-          hint="Chart at the time you took (or passed on) the trade"
-          existingUrl={session.outcomeChartEntry}
-          file={entryFile}
-          onFile={setEntryFile}
-        />
-        <CandleUploadSlot
           label="Post-trade chart"
-          hint="Chart showing what happened after the trade"
+          hint="What the stock did after your entry/skip/watch"
           existingUrl={session.outcomeChartExit}
           file={exitFile}
           onFile={setExitFile}
         />
       </div>
       {uploadErr && <p className={styles.uploadErr}>{uploadErr}</p>}
-      {hasChanges && (
+      {exitFile && (
         <div className={styles.outcomeFooter}>
           <button className="btn btn-primary" onClick={handleUpload} disabled={uploading}>
-            {uploading ? 'Uploading…' : 'Upload charts'}
+            {uploading ? 'Uploading…' : 'Upload chart'}
           </button>
         </div>
       )}
@@ -744,9 +733,12 @@ function OutcomeEditor({ session, onSaved }) {
   const existing  = session.outcomeData ?? {};
 
   // Take fields
-  const [result,       setResult]       = useState(existing.result       ?? '');
-  const [actualEntry,  setActualEntry]  = useState(session.actualEntry   ?? '');
-  const [actualExit,   setActualExit]   = useState(session.actualExit    ?? '');
+  const [result,          setResult]          = useState(existing.result          ?? '');
+  const [actualEntry,     setActualEntry]     = useState(session.actualEntry      ?? '');
+  const [actualExit,      setActualExit]      = useState(session.actualExit       ?? '');
+  const [tradeEntryDate,  setTradeEntryDate]  = useState(session.tradeEntryDate   ?? '');
+  const [tradeExitDate,   setTradeExitDate]   = useState(session.tradeExitDate    ?? '');
+  const [quantity,        setQuantity]        = useState(session.quantity         ?? '');
 
   // Skip/Watch fields
   const [direction,    setDirection]    = useState(existing.direction    ?? '');
@@ -768,6 +760,9 @@ function OutcomeEditor({ session, onSaved }) {
         : { direction, move, decisionCorrect: decisionOk, setupPlayedOut: setupPlayed, macroNote, sectorNote };
 
       const patch = { outcomeData, notes: notes || undefined };
+      if (tradeEntryDate) patch.tradeEntryDate = tradeEntryDate;
+      if (tradeExitDate)  patch.tradeExitDate  = tradeExitDate;
+      if (quantity)       patch.quantity        = parseInt(quantity, 10);
       if (isTake) {
         if (actualEntry) patch.actualEntry = parseFloat(actualEntry);
         if (actualExit)  patch.actualExit  = parseFloat(actualExit);
@@ -823,6 +818,20 @@ function OutcomeEditor({ session, onSaved }) {
                 onChange={e => setActualEntry(e.target.value)} className={styles.smallInput} step="0.01" />
               <input type="number" placeholder="Exit price ₹" value={actualExit}
                 onChange={e => setActualExit(e.target.value)} className={styles.smallInput} step="0.01" />
+              <input type="number" placeholder="Qty (shares)" value={quantity}
+                onChange={e => setQuantity(e.target.value)} className={styles.smallInput} min="1" step="1" />
+            </div>
+            <div className={styles.levelInputRow} style={{ marginTop: 8 }}>
+              <div>
+                <span className={styles.fieldLabel} style={{ display: 'block', marginBottom: 4 }}>Entry date</span>
+                <input type="date" value={tradeEntryDate}
+                  onChange={e => setTradeEntryDate(e.target.value)} className={styles.smallInput} />
+              </div>
+              <div>
+                <span className={styles.fieldLabel} style={{ display: 'block', marginBottom: 4 }}>Exit date</span>
+                <input type="date" value={tradeExitDate}
+                  onChange={e => setTradeExitDate(e.target.value)} className={styles.smallInput} />
+              </div>
             </div>
           </div>
 
@@ -848,7 +857,7 @@ function OutcomeEditor({ session, onSaved }) {
                 )}
                 {session.pnl != null && (
                   <div className={styles.levelCell}>
-                    <span className={styles.levelKey}>P&L</span>
+                    <span className={styles.levelKey}>Total P&L{session.quantity ? ` (${session.quantity} shares)` : ''}</span>
                     <span className={`mono ${session.pnl >= 0 ? 'accent' : 'danger'}`}>
                       {session.pnl >= 0 ? '+' : ''}₹{session.pnl}
                     </span>
@@ -896,6 +905,25 @@ function OutcomeEditor({ session, onSaved }) {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Trade dates + quantity (shared for Take; dates only for Skip/Watch to record observation window) ── */}
+      {!isTake && (
+        <div className={styles.actualLevels}>
+          <span className={styles.fieldLabel}>Observation window</span>
+          <div className={styles.levelInputRow}>
+            <div>
+              <span className={styles.fieldLabel} style={{ display: 'block', marginBottom: 4 }}>From date</span>
+              <input type="date" value={tradeEntryDate}
+                onChange={e => setTradeEntryDate(e.target.value)} className={styles.smallInput} />
+            </div>
+            <div>
+              <span className={styles.fieldLabel} style={{ display: 'block', marginBottom: 4 }}>To date</span>
+              <input type="date" value={tradeExitDate}
+                onChange={e => setTradeExitDate(e.target.value)} className={styles.smallInput} />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Market context (shared) ── */}
@@ -990,7 +1018,9 @@ function SessionDetail({ session, onClose, onUpdate, onDelete }) {
               )}
             </div>
             <span className={styles.modalMeta}>
-              {formatDate(session.createdAt)}
+              Analysis: {formatDate(session.createdAt)}
+              {session.tradeEntryDate && ` · Entry: ${formatDate(session.tradeEntryDate)}`}
+              {session.tradeExitDate  && ` · Exit: ${formatDate(session.tradeExitDate)}`}
               {lookback && ` · ${lookback}-session lookback`}
               {session.chartSource && ` · ${session.chartSource}`}
             </span>
@@ -1010,12 +1040,13 @@ function SessionDetail({ session, onClose, onUpdate, onDelete }) {
 
         <div className={styles.modalBody}>
           <ErrorBoundary resetLabel="Close">
-            {/* Chart image */}
+            {/* Original analysis chart */}
             {session.imagePath && (
               <div className={styles.chartWrap}>
+                <div className={styles.chartLabel}>Analysis Chart</div>
                 <img
-                  src={`http://localhost:3001/${session.imagePath.replace(/^\//, '')}`}
-                  alt="chart"
+                  src={session.imagePath}
+                  alt="analysis chart"
                   className={styles.chartImg}
                 />
               </div>
