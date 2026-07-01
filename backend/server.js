@@ -75,7 +75,7 @@ cron.schedule('45 16 * * 1-5', () => {
 })();
 
 app.listen(PORT, () => {
-  console.log(`SIPY backend running on http://localhost:${PORT}`);
+  console.log(`SIPY Wick backend running on http://localhost:${PORT}`);
   if (!process.env.ANTHROPIC_API_KEY) {
     console.warn('WARNING: ANTHROPIC_API_KEY not set — /analyze routes will fail');
   }

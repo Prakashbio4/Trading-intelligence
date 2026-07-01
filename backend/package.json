@@ -1,7 +1,7 @@
 {
   "name": "sipy-backend",
   "version": "1.0.0",
-  "description": "SIPY trading learning portal backend",
+  "description": "SIPY Wick trading learning portal backend",
   "main": "server.js",
   "type": "commonjs",
   "engines": {

@@ -12,7 +12,7 @@ export default function Nav({ active, onNavigate, user, onLogout }) {
     <header className={styles.header}>
       <div className={styles.brand}>
         <span className={styles.brandName}>SIPY</span>
-        <span className={styles.brandSub}>Capital</span>
+        <span className={styles.brandSub}>Wick</span>
       </div>
       <nav className={styles.nav}>
         {TABS.map(tab => (
