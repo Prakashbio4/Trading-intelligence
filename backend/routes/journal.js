@@ -3,7 +3,8 @@ const multer = require('multer');
 const Anthropic = require('@anthropic-ai/sdk');
 const supabase = require('../lib/supabase');
 const authMiddleware = require('../middleware/auth');
-const { evaluateSetup, TREND_LOOKBACK, SR_LOOKBACK } = require('../lib/setupContext');
+const { evaluateSetup, directionForBias, computeTradeLevels, TREND_LOOKBACK, SR_LOOKBACK } = require('../lib/setupContext');
+const { evaluateOutcome } = require('../lib/setupOutcome');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -202,10 +203,14 @@ router.get('/insights-context', authMiddleware, async (req, res) => {
 
 // GET /journal/missed-setups — patterns TA-Lib found, backed by prior trend +
 // volume + S&R context (the same checklist Analyse applies), that the user
-// didn't analyse. Pass strict=false to see every raw pattern, unfiltered.
+// didn't analyse, and that would have hit target before stop loss.
+// strict=false      → skip the trend/volume/S&R context filter entirely
+// onlyWinners=false → keep the context filter but also show setups that
+//                     would have been stopped out (or haven't resolved yet)
 router.get('/missed-setups', authMiddleware, async (req, res) => {
   const days = Math.min(parseInt(req.query.days) || 30, 90);
   const strict = req.query.strict !== 'false';
+  const onlyWinners = req.query.onlyWinners !== 'false';
   const from = new Date();
   from.setDate(from.getDate() - days);
   const fromStr = from.toISOString().split('T')[0];
@@ -253,27 +258,38 @@ router.get('/missed-setups', authMiddleware, async (req, res) => {
     historyBySymbol[symbol] = (hist || []).reverse(); // ascending
   }
 
-  const missed = candidates
-    .map(r => {
-      const history = historyBySymbol[r.symbol] || [];
-      const patternCandle = { close: r.close, volume: r.volume, vol_10day_avg: r.vol_10day_avg };
+  // Step 1 (context) + Step 2 (would it have hit target before SL) per pattern.
+  const missed = [];
+  for (const r of candidates) {
+    const history = historyBySymbol[r.symbol] || [];
+    const patternCandle = { close: r.close, volume: r.volume, vol_10day_avg: r.vol_10day_avg };
 
-      const qualifyingPatterns = r.talib_patterns
-        .map(p => ({
-          ...p,
-          ...evaluateSetup({
-            patternCandle,
-            priorCandles: history.filter(c => c.date < p.startDate),
-            bias: p.bias,
-          }),
-        }))
-        .filter(p => p.qualifies);
+    const evaluatedPatterns = [];
+    for (const p of r.talib_patterns) {
+      const context = evaluateSetup({
+        patternCandle,
+        priorCandles: history.filter(c => c.date < p.startDate),
+        bias: p.bias,
+      });
+      if (!context.qualifies) continue;
 
-      return qualifyingPatterns.length
-        ? { symbol: r.symbol, date: r.date, close: r.close, patterns: qualifyingPatterns }
+      const direction = directionForBias(p.bias);
+      const levels = direction
+        ? computeTradeLevels({ entry: r.close, support: context.support, resistance: context.resistance, direction })
         : null;
-    })
-    .filter(Boolean);
+      const { outcome, hitAt } = levels
+        ? await evaluateOutcome({ symbol: r.symbol, completionDate: p.completionDate, levels })
+        : { outcome: 'no_data', hitAt: null };
+
+      if (onlyWinners && outcome === 'sl_hit') continue;
+
+      evaluatedPatterns.push({ ...p, ...context, direction, levels, outcome, hitAt });
+    }
+
+    if (evaluatedPatterns.length) {
+      missed.push({ symbol: r.symbol, date: r.date, close: r.close, patterns: evaluatedPatterns });
+    }
+  }
 
   res.json(missed);
 });

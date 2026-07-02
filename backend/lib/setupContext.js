@@ -70,11 +70,42 @@ function clusterLevels(points) {
   return clusters.map(c => c.avg);
 }
 
-function nearestSRDistancePct(price, candles) {
+// Nearest confirmed swing level below price (support) and above price (resistance).
+function nearestLevels(price, candles) {
   const { highs, lows } = findSwingPoints(candles);
   const levels = clusterLevels([...highs, ...lows]);
-  if (!levels.length) return null;
-  return Math.min(...levels.map(level => Math.abs(price - level) / level * 100));
+  const below = levels.filter(l => l < price);
+  const above = levels.filter(l => l > price);
+  return {
+    support:    below.length ? Math.max(...below) : null,
+    resistance: above.length ? Math.min(...above) : null,
+  };
+}
+
+// bullish patterns look for a long from support, bearish patterns look for a
+// short from resistance — indecision patterns have no directional trade.
+function directionForBias(bias) {
+  if (bias === 'bullish_reversal' || bias === 'bullish_continuation') return 'long';
+  if (bias === 'bearish_reversal' || bias === 'bearish_continuation') return 'short';
+  return null;
+}
+
+// Synthetic entry/SL/target for a setup nobody actually traded: entry at the
+// pattern's completion close, SL at the nearest S&R level in the risk
+// direction (same level Step 1 already confirmed proximity to), target set
+// for a 1.5 RRR — the same threshold Analyse requires for a TAKE verdict.
+function computeTradeLevels({ entry, support, resistance, direction }) {
+  if (direction === 'long' && support != null) {
+    const risk = entry - support;
+    if (risk <= 0) return null;
+    return { entry, sl: support, target: Math.round((entry + risk * 1.5) * 100) / 100 };
+  }
+  if (direction === 'short' && resistance != null) {
+    const risk = resistance - entry;
+    if (risk <= 0) return null;
+    return { entry, sl: resistance, target: Math.round((entry - risk * 1.5) * 100) / 100 };
+  }
+  return null;
 }
 
 // patternCandle: { close, volume, vol_10day_avg } for the pattern's completion day
@@ -82,7 +113,13 @@ function nearestSRDistancePct(price, candles) {
 // bias: one of the DETECTORS bias values from lib/patterns.js
 function evaluateSetup({ patternCandle, priorCandles, bias }) {
   const trend = classifyTrend(priorCandles.slice(-TREND_LOOKBACK));
-  const srDistancePct = nearestSRDistancePct(patternCandle.close, priorCandles.slice(-SR_LOOKBACK));
+  const { support, resistance } = nearestLevels(patternCandle.close, priorCandles.slice(-SR_LOOKBACK));
+  const nearestLevel = [support, resistance]
+    .filter(l => l != null)
+    .sort((a, b) => Math.abs(patternCandle.close - a) - Math.abs(patternCandle.close - b))[0] ?? null;
+  const srDistancePct = nearestLevel != null
+    ? Math.abs(patternCandle.close - nearestLevel) / nearestLevel * 100
+    : null;
   const volumeConfirmed = patternCandle.vol_10day_avg
     ? patternCandle.volume >= patternCandle.vol_10day_avg
     : null;
@@ -96,6 +133,8 @@ function evaluateSetup({ patternCandle, priorCandles, bias }) {
     trendReason: trend.reason,
     volumeConfirmed,
     volumeRatio,
+    support,
+    resistance,
     srDistancePct: srDistancePct != null ? Math.round(srDistancePct * 100) / 100 : null,
     nearSR,
     qualifies: volumeConfirmed === true && trendMatchesBias(bias, trend.direction) && nearSR === true,
@@ -106,6 +145,8 @@ module.exports = {
   evaluateSetup,
   classifyTrend,
   findSwingPoints,
+  directionForBias,
+  computeTradeLevels,
   TREND_LOOKBACK,
   SR_LOOKBACK,
 };

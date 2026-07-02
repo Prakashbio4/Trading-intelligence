@@ -60,6 +60,13 @@ function CandleChart({ candles }) {
   );
 }
 
+function OutcomeBadge({ outcome, hitAt }) {
+  if (outcome === 'target_hit') return <span className={`${styles.outcomeBadge} ${styles.outcomeWin}`}>Target hit · t+{hitAt}</span>;
+  if (outcome === 'sl_hit')     return <span className={`${styles.outcomeBadge} ${styles.outcomeLoss}`}>Stopped out · t+{hitAt}</span>;
+  if (outcome === 'pending')    return <span className={`${styles.outcomeBadge} ${styles.outcomePending}`}>Pending</span>;
+  return null;
+}
+
 // ── Single missed setup card ──────────────────────────────────────────────────
 
 function SetupCard({ setup }) {
@@ -106,9 +113,15 @@ function SetupCard({ setup }) {
                   {p.bias?.replace('_', ' ')}
                 </span>
                 <span className={styles.patternDates}>{p.startDate} → {p.completionDate}</span>
+                <OutcomeBadge outcome={p.outcome} hitAt={p.hitAt} />
                 {p.trend && (
                   <span className={styles.patternContext}>
                     {p.trend} prior trend · {p.volumeRatio}x avg volume · {p.srDistancePct}% from S&amp;R
+                  </span>
+                )}
+                {p.levels && (
+                  <span className={styles.patternContext}>
+                    Entry ₹{p.levels.entry} · SL ₹{p.levels.sl} · Target ₹{p.levels.target}
                   </span>
                 )}
               </div>
@@ -146,7 +159,7 @@ export default function Setups() {
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>Missed Setups</h1>
-          <p className={styles.sub}>Patterns backed by prior trend, volume, and S&amp;R that you didn't analyse</p>
+          <p className={styles.sub}>Patterns backed by prior trend, volume, and S&amp;R that would have hit target — and you didn't analyse</p>
         </div>
         <select className={styles.daysSelect} value={days} onChange={e => setDays(Number(e.target.value))}>
           <option value={14}>Last 14 days</option>
