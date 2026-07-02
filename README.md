@@ -22,7 +22,7 @@ This is a working full-stack app, not a prototype — auth, database, broker int
 | **Analyze** | Submit a ticker + your read of the setup. The backend runs it through a 27-pattern candlestick detector (`technicalindicators`) plus support/resistance and stop-loss-distance rules, then an LLM (Claude) layer reviews it — combining rule-based detection with model judgment rather than relying on either alone. |
 | **Journal** | Logs each decision (Take / Skip / Watch) with entry/exit dates, quantity, chart images (stored in Supabase Storage), and the OHLC candle window around the trade. Supports a follow-up chat per session to dig into a specific call. |
 | **3-eye pattern check** | Every journal session stores three parallel reads: what *you* saw, what the *AI* detected, and what the *raw OHLC/TA-Lib pattern data* actually shows — the core mechanism for catching confirmation bias. |
-| **Missed Setups** | Surfaces setups that were flagged but not acted on, with a mini candlestick chart of what happened afterward — tracks opportunity cost, not just executed trades. |
+| **Signals** | Scans your stock universe daily for the same 4-point checklist Analyse applies — recognized candle pattern, aligned prior trend, above-average volume, stop loss near S&R — and flags anything you haven't already journaled, with a mini candlestick chart. |
 | **Insights** | Aggregates calibration stats across sessions (agreement rate between your read and the AI's, strongest pattern, biggest gap area, AI accuracy vs. actual outcomes) plus a chat interface over your own history. Unlocks once you have enough sessions (20+) for the stats to be meaningful. |
 | **Stock Universe** | Tracks the set of tickers you follow; adding one immediately kicks off an OHLC backfill fetch. |
 | **Outcome automation** | A scheduled job (`node-cron`, 4:15 PM IST weekdays) pulls daily OHLC from Groww after market close, then a second job (4:45 PM IST) auto-populates trade/setup outcomes from that data — no manual result entry. A startup check detects if a cron run was missed (e.g. container restart) and catches up automatically. |
@@ -31,7 +31,7 @@ This is a working full-stack app, not a prototype — auth, database, broker int
 ## Architecture
 
 ```
-frontend/   React 19 + Vite SPA — Analyse, Journal, Insights, Missed Setups pages
+frontend/   React 19 + Vite SPA — Analyse, Journal, Insights, Signals pages
 backend/    Node + Express API — auth, analyze, journal, universe routes
             ├── lib/       Groww broker client, 27-pattern detector library, Supabase client
             ├── jobs/      OHLC fetch + outcome auto-population (cron-scheduled)

@@ -124,16 +124,6 @@
   width: 100%;
 }
 
-.outcomeBadge {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-.outcomeWin     { background: rgba(34,197,94,0.15);  color: #22c55e; }
-.outcomeLoss    { background: rgba(239,68,68,0.15);  color: #ef4444; }
-.outcomePending { background: rgba(245,158,11,0.15); color: #f59e0b; }
-
 .biasBadge {
   font-size: 11px;
   padding: 2px 8px;

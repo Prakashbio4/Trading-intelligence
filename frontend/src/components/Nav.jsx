@@ -4,7 +4,7 @@ const TABS = [
   { id: 'analyse',  label: 'Analyse'  },
   { id: 'journal',  label: 'Journal'  },
   { id: 'insights', label: 'Insights' },
-  { id: 'setups',   label: 'Missed Setups' },
+  { id: 'signals',  label: 'Signals' },
 ];
 
 export default function Nav({ active, onNavigate, user, onLogout }) {

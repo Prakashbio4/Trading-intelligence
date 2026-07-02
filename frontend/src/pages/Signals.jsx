@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import styles from './Setups.module.css';
+import styles from './Signals.module.css';
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -8,8 +8,8 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function fetchMissedSetups(days) {
-  const res = await fetch(`${BASE}/journal/missed-setups?days=${days}`, { headers: authHeaders() });
+async function fetchSignals(days) {
+  const res = await fetch(`${BASE}/journal/signals?days=${days}`, { headers: authHeaders() });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -60,30 +60,23 @@ function CandleChart({ candles }) {
   );
 }
 
-function OutcomeBadge({ outcome, hitAt }) {
-  if (outcome === 'target_hit') return <span className={`${styles.outcomeBadge} ${styles.outcomeWin}`}>Target hit · t+{hitAt}</span>;
-  if (outcome === 'sl_hit')     return <span className={`${styles.outcomeBadge} ${styles.outcomeLoss}`}>Stopped out · t+{hitAt}</span>;
-  if (outcome === 'pending')    return <span className={`${styles.outcomeBadge} ${styles.outcomePending}`}>Pending</span>;
-  return null;
-}
+// ── Single signal card ──────────────────────────────────────────────────────
 
-// ── Single missed setup card ──────────────────────────────────────────────────
-
-function SetupCard({ setup }) {
+function SignalCard({ signal }) {
   const [candles, setCandles] = useState(null);
   const [open, setOpen]       = useState(false);
 
   async function toggle() {
     if (!open && !candles) {
       try {
-        const data = await fetchWindow(setup.symbol, setup.date);
+        const data = await fetchWindow(signal.symbol, signal.date);
         setCandles(data);
       } catch (_) { setCandles([]); }
     }
     setOpen(o => !o);
   }
 
-  const biases = [...new Set(setup.patterns.map(p => p.bias))];
+  const biases = [...new Set(signal.patterns.map(p => p.bias))];
   const bullish  = biases.some(b => b?.includes('bullish'));
   const bearish  = biases.some(b => b?.includes('bearish'));
   const sentiment = bullish && bearish ? 'mixed' : bullish ? 'bullish' : 'bearish';
@@ -92,13 +85,13 @@ function SetupCard({ setup }) {
     <div className={`${styles.card} ${open ? styles.cardOpen : ''}`}>
       <button className={styles.cardHeader} onClick={toggle}>
         <div className={styles.cardLeft}>
-          <span className={styles.symbol}>{setup.symbol}</span>
-          <span className={styles.date}>{setup.date}</span>
+          <span className={styles.symbol}>{signal.symbol}</span>
+          <span className={styles.date}>{signal.date}</span>
         </div>
         <div className={styles.cardRight}>
           <span className={`${styles.sentiment} ${styles[sentiment]}`}>{sentiment}</span>
-          <span className={styles.patternCount}>{setup.patterns.length} pattern{setup.patterns.length > 1 ? 's' : ''}</span>
-          <span className={styles.close}>₹{Number(setup.close).toFixed(2)}</span>
+          <span className={styles.patternCount}>{signal.patterns.length} pattern{signal.patterns.length > 1 ? 's' : ''}</span>
+          <span className={styles.close}>₹{Number(signal.close).toFixed(2)}</span>
           <span className={styles.chevron}>{open ? '▲' : '▼'}</span>
         </div>
       </button>
@@ -106,14 +99,13 @@ function SetupCard({ setup }) {
       {open && (
         <div className={styles.cardBody}>
           <div className={styles.patterns}>
-            {setup.patterns.map((p, i) => (
+            {signal.patterns.map((p, i) => (
               <div key={i} className={styles.patternRow}>
                 <span className={styles.patternName}>{p.name}</span>
                 <span className={`${styles.biasBadge} ${p.bias?.includes('bullish') ? styles.bull : styles.bear}`}>
                   {p.bias?.replace('_', ' ')}
                 </span>
                 <span className={styles.patternDates}>{p.startDate} → {p.completionDate}</span>
-                <OutcomeBadge outcome={p.outcome} hitAt={p.hitAt} />
                 {p.trend && (
                   <span className={styles.patternContext}>
                     {p.trend} prior trend · {p.volumeRatio}x avg volume · {p.srDistancePct}% from S&amp;R
@@ -139,17 +131,17 @@ function SetupCard({ setup }) {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-export default function Setups() {
-  const [setups,  setSetups]  = useState([]);
+export default function Signals() {
+  const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
-  const [days,    setDays]    = useState(30);
+  const [days,    setDays]    = useState(3);
 
   useEffect(() => {
     setLoading(true);
     setError('');
-    fetchMissedSetups(days)
-      .then(setSetups)
+    fetchSignals(days)
+      .then(setSignals)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [days]);
@@ -158,10 +150,11 @@ export default function Setups() {
     <div className={styles.page}>
       <div className={styles.header}>
         <div>
-          <h1 className={styles.title}>Missed Setups</h1>
-          <p className={styles.sub}>Patterns backed by prior trend, volume, and S&amp;R that would have hit target — and you didn't analyse</p>
+          <h1 className={styles.title}>Signals</h1>
+          <p className={styles.sub}>Your universe, scanned daily for candle + prior trend + volume + S&amp;R</p>
         </div>
         <select className={styles.daysSelect} value={days} onChange={e => setDays(Number(e.target.value))}>
+          <option value={3}>Last 3 days</option>
           <option value={14}>Last 14 days</option>
           <option value={30}>Last 30 days</option>
           <option value={60}>Last 60 days</option>
@@ -174,11 +167,11 @@ export default function Setups() {
 
       {!loading && !error && (
         <>
-          <p className={styles.count}>{setups.length} missed setup{setups.length !== 1 ? 's' : ''}</p>
+          <p className={styles.count}>{signals.length} signal{signals.length !== 1 ? 's' : ''}</p>
           <div className={styles.list}>
-            {setups.length === 0
-              ? <p className={styles.empty}>No missed setups — you're on top of everything.</p>
-              : setups.map(s => <SetupCard key={`${s.symbol}|${s.date}`} setup={s} />)
+            {signals.length === 0
+              ? <p className={styles.empty}>No signals right now — nothing in your universe meets the checklist.</p>
+              : signals.map(s => <SignalCard key={`${s.symbol}|${s.date}`} signal={s} />)
             }
           </div>
         </>
