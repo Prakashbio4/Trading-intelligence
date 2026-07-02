@@ -117,6 +117,12 @@
 
 .patternName { font-size: 14px; font-weight: 500; }
 .patternDates { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+.patternContext {
+  font-size: 11px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  width: 100%;
+}
 
 .biasBadge {
   font-size: 11px;

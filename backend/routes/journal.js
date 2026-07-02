@@ -3,6 +3,7 @@ const multer = require('multer');
 const Anthropic = require('@anthropic-ai/sdk');
 const supabase = require('../lib/supabase');
 const authMiddleware = require('../middleware/auth');
+const { evaluateSetup, TREND_LOOKBACK, SR_LOOKBACK } = require('../lib/setupContext');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -199,16 +200,20 @@ router.get('/insights-context', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /journal/missed-setups — patterns TA-Lib found but user didn't analyse
+// GET /journal/missed-setups — patterns TA-Lib found, backed by prior trend +
+// volume + S&R context (the same checklist Analyse applies), that the user
+// didn't analyse. Pass strict=false to see every raw pattern, unfiltered.
 router.get('/missed-setups', authMiddleware, async (req, res) => {
   const days = Math.min(parseInt(req.query.days) || 30, 90);
+  const strict = req.query.strict !== 'false';
   const from = new Date();
   from.setDate(from.getDate() - days);
+  const fromStr = from.toISOString().split('T')[0];
 
   const { data, error } = await supabase
     .from('ohlc_records')
-    .select('symbol, date, close, talib_patterns')
-    .gte('date', from.toISOString().split('T')[0])
+    .select('symbol, date, close, volume, vol_10day_avg, talib_patterns')
+    .gte('date', fromStr)
     .neq('talib_patterns', '[]')
     .order('date', { ascending: false });
 
@@ -218,18 +223,57 @@ router.get('/missed-setups', authMiddleware, async (req, res) => {
     .from('journal_sessions')
     .select('ticker, date')
     .eq('user_id', req.user.userId)
-    .gte('date', from.toISOString().split('T')[0]);
+    .gte('date', fromStr);
 
   const analysed = new Set((sessions || []).map(s => `${s.ticker}|${s.date}`));
+  const candidates = (data || []).filter(r => !analysed.has(`${r.symbol}|${r.date}`));
 
-  const missed = (data || [])
-    .filter(r => !analysed.has(`${r.symbol}|${r.date}`))
-    .map(r => ({
-      symbol:   r.symbol,
-      date:     r.date,
-      close:    r.close,
-      patterns: r.talib_patterns,
-    }));
+  if (!strict) {
+    return res.json(candidates.map(r => ({
+      symbol: r.symbol, date: r.date, close: r.close, patterns: r.talib_patterns,
+    })));
+  }
+
+  // Fetch enough prior history per symbol to classify trend and detect S&R levels
+  const historyLimit = TREND_LOOKBACK + SR_LOOKBACK;
+  const historyBySymbol = {};
+  for (const symbol of new Set(candidates.map(c => c.symbol))) {
+    const latestDate = candidates
+      .filter(c => c.symbol === symbol)
+      .reduce((max, c) => (c.date > max ? c.date : max), '0000-00-00');
+
+    const { data: hist } = await supabase
+      .from('ohlc_records')
+      .select('date, high, low, close')
+      .eq('symbol', symbol)
+      .lte('date', latestDate)
+      .order('date', { ascending: false })
+      .limit(historyLimit);
+
+    historyBySymbol[symbol] = (hist || []).reverse(); // ascending
+  }
+
+  const missed = candidates
+    .map(r => {
+      const history = historyBySymbol[r.symbol] || [];
+      const patternCandle = { close: r.close, volume: r.volume, vol_10day_avg: r.vol_10day_avg };
+
+      const qualifyingPatterns = r.talib_patterns
+        .map(p => ({
+          ...p,
+          ...evaluateSetup({
+            patternCandle,
+            priorCandles: history.filter(c => c.date < p.startDate),
+            bias: p.bias,
+          }),
+        }))
+        .filter(p => p.qualifies);
+
+      return qualifyingPatterns.length
+        ? { symbol: r.symbol, date: r.date, close: r.close, patterns: qualifyingPatterns }
+        : null;
+    })
+    .filter(Boolean);
 
   res.json(missed);
 });
