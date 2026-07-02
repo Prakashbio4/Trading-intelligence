@@ -18,25 +18,27 @@ router.get('/', async (_req, res) => {
   res.json(data);
 });
 
-// POST /universe — add a stock
+// POST /universe — add a stock. Idempotent: re-adding an existing symbol is
+// a no-op rather than a duplicate-key error, so retries from the auto-add
+// call in Analyse are safe to fire more than once.
 router.post('/', async (req, res) => {
   const { symbol, exchange = 'NSE', sector = '' } = req.body;
   if (!symbol) return res.status(400).json({ error: 'symbol is required' });
 
-  const { data, error } = await supabase
+  const upperSymbol = symbol.toUpperCase();
+
+  const { error } = await supabase
     .from('stock_universe')
-    .insert({ symbol: symbol.toUpperCase(), exchange, sector, active: true })
-    .select()
-    .single();
+    .upsert({ symbol: upperSymbol, exchange, sector, active: true }, { onConflict: 'symbol', ignoreDuplicates: true });
 
   if (error) return res.status(500).json({ error: error.message });
 
   // Immediately fetch OHLC for the new stock
-  processSymbol(data.symbol).catch(err =>
-    console.error(`[universe] Background OHLC fetch failed for ${data.symbol}:`, err.message)
+  processSymbol(upperSymbol).catch(err =>
+    console.error(`[universe] Background OHLC fetch failed for ${upperSymbol}:`, err.message)
   );
 
-  res.status(201).json(data);
+  res.status(201).json({ symbol: upperSymbol });
 });
 
 // PATCH /universe/:symbol — update (e.g. toggle active, set sector)

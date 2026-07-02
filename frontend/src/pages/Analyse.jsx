@@ -6,13 +6,26 @@ import { SelectField, NumberField, TextField, TextArea } from '../components/Fie
 import { analyzeUnified, saveSession } from '../api/index.js';
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-function autoAddToUniverse(ticker) {
+
+// Fire-and-forget from the caller's perspective (not awaited in handleSubmit),
+// but retries once and logs real failures instead of swallowing them —
+// silent failures here mean a stock never shows up in Signals with no trace.
+async function autoAddToUniverse(ticker, attempt = 1) {
   const token = localStorage.getItem('sipy_token');
-  fetch(`${BASE}/universe`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ symbol: ticker }),
-  }).catch(() => {}); // fire-and-forget, ignore duplicate errors
+  try {
+    const res = await fetch(`${BASE}/universe`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbol: ticker }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  } catch (err) {
+    if (attempt < 2) {
+      await new Promise(r => setTimeout(r, 1500));
+      return autoAddToUniverse(ticker, attempt + 1);
+    }
+    console.error(`Failed to add ${ticker} to stock universe:`, err.message);
+  }
 }
 import {
   TREND_OPTIONS, TREND_DURATION, STOCK_PHASE, CHART_STRUCTURE, OPPOSING_STRUCTURE,
