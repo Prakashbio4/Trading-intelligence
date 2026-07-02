@@ -3,12 +3,12 @@ import Nav from './components/Nav.jsx';
 import Analyse from './pages/Analyse.jsx';
 import Journal from './pages/Journal.jsx';
 import Insights from './pages/Insights.jsx';
-import Setups from './pages/Setups.jsx';
+import Signals from './pages/Signals.jsx';
 import Login from './pages/Login.jsx';
 import { getMe, pingHealth } from './api/index.js';
 import styles from './App.module.css';
 
-const PAGES = { analyse: Analyse, journal: Journal, insights: Insights, setups: Setups };
+const PAGES = { analyse: Analyse, journal: Journal, insights: Insights, signals: Signals };
 
 export default function App() {
   const [tab, setTab] = useState('analyse');

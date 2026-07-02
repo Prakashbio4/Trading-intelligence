@@ -3,6 +3,7 @@ const multer = require('multer');
 const Anthropic = require('@anthropic-ai/sdk');
 const supabase = require('../lib/supabase');
 const authMiddleware = require('../middleware/auth');
+const { evaluateSetup, directionForBias, computeTradeLevels, SR_LOOKBACK } = require('../lib/setupContext');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -199,16 +200,25 @@ router.get('/insights-context', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /journal/missed-setups — patterns TA-Lib found but user didn't analyse
-router.get('/missed-setups', authMiddleware, async (req, res) => {
-  const days = Math.min(parseInt(req.query.days) || 30, 90);
+// GET /journal/signals — daily scan of your journal's stock universe for the
+// 4-point checklist: a recognized candle pattern in the last 5 candles, the
+// 1-3 candles right before it contradicting/agreeing with its direction,
+// above-average volume (5-candle), and a stop loss near S&R (120-day swing
+// levels). Primary trend, RSI, Bollinger Bands and MACD stay a manual check
+// in Analyse. Excludes anything you've already analysed for that date.
+// strict=false → skip the checklist filter, show every raw TA-Lib pattern
+//                (useful for sanity-checking the filter itself)
+router.get('/signals', authMiddleware, async (req, res) => {
+  const days = Math.min(parseInt(req.query.days) || 5, 90);
+  const strict = req.query.strict !== 'false';
   const from = new Date();
   from.setDate(from.getDate() - days);
+  const fromStr = from.toISOString().split('T')[0];
 
   const { data, error } = await supabase
     .from('ohlc_records')
-    .select('symbol, date, close, talib_patterns')
-    .gte('date', from.toISOString().split('T')[0])
+    .select('symbol, date, close, volume, talib_patterns')
+    .gte('date', fromStr)
     .neq('talib_patterns', '[]')
     .order('date', { ascending: false });
 
@@ -218,20 +228,67 @@ router.get('/missed-setups', authMiddleware, async (req, res) => {
     .from('journal_sessions')
     .select('ticker, date')
     .eq('user_id', req.user.userId)
-    .gte('date', from.toISOString().split('T')[0]);
+    .gte('date', fromStr);
 
   const analysed = new Set((sessions || []).map(s => `${s.ticker}|${s.date}`));
+  const candidates = (data || []).filter(r => !analysed.has(`${r.symbol}|${r.date}`));
 
-  const missed = (data || [])
-    .filter(r => !analysed.has(`${r.symbol}|${r.date}`))
-    .map(r => ({
-      symbol:   r.symbol,
-      date:     r.date,
-      close:    r.close,
-      patterns: r.talib_patterns,
-    }));
+  if (!strict) {
+    return res.json(candidates.map(r => ({
+      symbol: r.symbol, date: r.date, close: r.close, patterns: r.talib_patterns,
+    })));
+  }
 
-  res.json(missed);
+  // Fetch enough prior history per symbol to detect S&R levels (the deepest
+  // window the checklist needs — the candle/volume checks only look back a
+  // handful of days, comfortably inside this).
+  const historyBySymbol = {};
+  for (const symbol of new Set(candidates.map(c => c.symbol))) {
+    const latestDate = candidates
+      .filter(c => c.symbol === symbol)
+      .reduce((max, c) => (c.date > max ? c.date : max), '0000-00-00');
+
+    const { data: hist } = await supabase
+      .from('ohlc_records')
+      .select('date, open, high, low, close, volume')
+      .eq('symbol', symbol)
+      .lte('date', latestDate)
+      .order('date', { ascending: false })
+      .limit(SR_LOOKBACK + 10);
+
+    historyBySymbol[symbol] = (hist || []).reverse(); // ascending
+  }
+
+  const signals = [];
+  for (const r of candidates) {
+    const history = historyBySymbol[r.symbol] || [];
+    const patternCandle = { close: r.close, volume: r.volume };
+
+    const qualifyingPatterns = r.talib_patterns
+      .map(p => {
+        const context = evaluateSetup({
+          patternCandle,
+          volumeCandles: history.filter(c => c.date <= r.date),
+          priorCandles: history.filter(c => c.date < p.startDate),
+          bias: p.bias,
+        });
+        if (!context.qualifies) return null;
+
+        const direction = directionForBias(p.bias);
+        const levels = direction
+          ? computeTradeLevels({ entry: r.close, support: context.support, resistance: context.resistance, direction })
+          : null;
+
+        return { ...p, ...context, direction, levels };
+      })
+      .filter(Boolean);
+
+    if (qualifyingPatterns.length) {
+      signals.push({ symbol: r.symbol, date: r.date, close: r.close, patterns: qualifyingPatterns });
+    }
+  }
+
+  res.json(signals);
 });
 
 // GET /journal/:id

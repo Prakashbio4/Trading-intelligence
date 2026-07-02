@@ -74,6 +74,21 @@ function calcRRR(entry, sl, target) {
   return Math.round(((t - e) / (e - s)) * 100) / 100;
 }
 
+// ── Format S&R level entries, guarding against non-primitive AI output ──────
+
+function formatLevel(v) {
+  if (v == null) return null;
+  if (typeof v === 'object') {
+    const val = v.value ?? v.price ?? v.level ?? v.support ?? v.resistance;
+    return val != null ? String(val) : null;
+  }
+  return String(v);
+}
+
+function formatLevels(levels) {
+  return [].concat(levels).map(formatLevel).filter(Boolean).join(' · ');
+}
+
 // ── S&R vs SL distance check (Varsity rule: must be within 4%) ───────────────
 
 function SRSlCheck({ support, resistance, sl, decision }) {
@@ -566,6 +581,12 @@ export default function Analyse() {
                 target: decision === 'Take' ? parseFloat(target)      : parseFloat(skipTarget) || null,
                 rrr:    decision === 'Take' ? rrr                     : skipRRR,
               }}
+              userRead={{
+                trend:          form.primaryTrend,
+                chartStructure: form.chartStructure,
+                pattern:        triggerPattern,
+                decision,
+              }}
             />
           </ErrorBoundary>
         )}
@@ -690,7 +711,35 @@ function DiffCell({ user, ai }) {
   );
 }
 
-function AIResponseDisplay({ analysis, userLevels }) {
+function normalizeRead(s) {
+  return (s || '').toString().trim().toLowerCase();
+}
+
+// Loose match: treats differently-worded but equivalent reads as a match.
+// Exact comparison for divergences with reasoning is handled by the AI's
+// own whereYouWentWrong / divergences text — this is just quick visibility.
+function readsMatch(user, ai) {
+  const nu = normalizeRead(user);
+  const na = normalizeRead(ai);
+  if (!nu || !na) return null;
+  return nu === na || nu.includes(na) || na.includes(nu);
+}
+
+function ReadCompareRow({ label, user, ai }) {
+  const match = readsMatch(user, ai);
+  const icon  = match === null ? '—' : match ? '✓' : '✗';
+  const cls   = match === null ? styles.lcEmpty : match ? styles.lcDiffGood : styles.lcDiffBad;
+  return (
+    <div className={styles.lcRow}>
+      <span className={styles.lcLabel}>{label}</span>
+      <span className={styles.lcVal}>{user || '—'}</span>
+      <span className={styles.lcVal}>{ai || '—'}</span>
+      <span className={cls}>{icon}</span>
+    </div>
+  );
+}
+
+function AIResponseDisplay({ analysis, userLevels, userRead }) {
   const { whatISee, narrativeIRead, myDecision, whereYouWentWrong } = analysis;
   const hasUserLevels = userLevels?.entry != null;
   const hasAILevels  = (myDecision?.verdict === 'TAKE' || myDecision?.verdict === 'WATCH') && myDecision?.entry != null;
@@ -731,18 +780,37 @@ function AIResponseDisplay({ analysis, userLevels }) {
             <div className={styles.keyLevelRow}>
               <span className={styles.keyLevelLabel}>Support</span>
               <span className={styles.keyLevelVal}>
-                {[].concat(whatISee.keyLevels.support).join(' · ')}
+                {formatLevels(whatISee.keyLevels.support)}
               </span>
             </div>
             <div className={styles.keyLevelRow}>
               <span className={styles.keyLevelLabel}>Resistance</span>
               <span className={styles.keyLevelVal}>
-                {[].concat(whatISee.keyLevels.resistance).join(' · ')}
+                {formatLevels(whatISee.keyLevels.resistance)}
               </span>
             </div>
           </div>
         )}
       </section>
+
+      {/* 1b — Your Read vs AI's Read (AI forms this independently, with no hints) */}
+      {userRead && (
+        <section className="card">
+          <div className="section-label">Your Read vs AI&apos;s Read</div>
+          <div className={styles.lcTable}>
+            <div className={styles.lcHeader}>
+              <span />
+              <span className={styles.lcColHead}>Yours</span>
+              <span className={styles.lcColHead}>AI</span>
+              <span className={styles.lcColHead} />
+            </div>
+            <ReadCompareRow label="Trend"     user={userRead.trend}          ai={whatISee?.trend?.direction} />
+            <ReadCompareRow label="Structure" user={userRead.chartStructure} ai={whatISee?.chartStructure?.pattern} />
+            <ReadCompareRow label="Pattern"   user={userRead.pattern}        ai={whatISee?.candlePattern?.name} />
+            <ReadCompareRow label="Decision"  user={userRead.decision?.toUpperCase()} ai={myDecision?.verdict} />
+          </div>
+        </section>
+      )}
 
       {/* 2 — Narrative I Read */}
       <section className="card">
