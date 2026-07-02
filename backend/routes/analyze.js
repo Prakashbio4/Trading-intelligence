@@ -116,6 +116,81 @@ function parseOrError(raw, label) {
   }
 }
 
+// ── Compare the AI's independent read against the trader's submitted read ───
+// The main analysis call never sees the trader's trend/structure/pattern/decision
+// (deliberately, so it isn't hinted). This second, text-only pass takes both
+// completed reads and reports where they actually diverge, since the trader's
+// answers otherwise never get compared against anything.
+
+const SYSTEM_COMPARE = `You compare a trader's manual chart read against an independent AI chart read of the same chart, and report where they diverge.
+
+RULES:
+1. Respond with ONLY valid JSON — no prose, no markdown.
+2. Only flag genuine disagreements. If two fields describe the same thing in different words (e.g. "Ranging" and "Sideways"), treat them as a match, not a divergence.
+3. Do not re-litigate volume, MACD, RSI, or Bollinger Bands — those were already compared elsewhere. Focus only on trend, chart structure, candle pattern, and trade decision (verdict/levels).
+4. Rank corrections by trading significance: wrong decision (Take/Skip/Watch) > wrong candle pattern > wrong trend > wrong chart structure > wrong trade levels.`;
+
+async function compareAgainstUserRead(data, userRead) {
+  const {
+    primaryTrend, trendDuration, stockPhase, userChartStructure, opposingStructure,
+    patternName, userDecision, userConfidence,
+    plannedEntry, plannedSL, plannedTarget, plannedRRR,
+    userEntry, userSL, userTarget,
+  } = userRead;
+
+  const levelsLine = userDecision === 'Take'
+    ? `Planned entry / SL / target / RRR: ${plannedEntry} / ${plannedSL} / ${plannedTarget} / ${plannedRRR}`
+    : `Estimated entry / SL / target: ${userEntry ?? 'Not provided'} / ${userSL ?? 'Not provided'} / ${userTarget ?? 'Not provided'}`;
+
+  const comparePrompt = `Your own independent chart read (formed without seeing the trader's answers):
+${JSON.stringify({ whatISee: data.whatISee, myDecision: data.myDecision }, null, 2)}
+
+What the trader submitted BEFORE seeing your analysis:
+Primary trend: ${primaryTrend || 'Not provided'}
+Trend duration: ${trendDuration || 'Not provided'}
+Stock phase: ${stockPhase || 'Not provided'}
+Chart structure: ${userChartStructure || 'Not provided'}
+Opposing structure: ${opposingStructure || 'Not provided'}
+Candle pattern (trigger): ${patternName || 'Not provided'}
+Decision: ${userDecision || 'Not provided'} (confidence: ${userConfidence || 'Not provided'})
+${levelsLine}
+
+Respond with ONLY valid JSON matching this schema:
+{
+  "agreementWithUser": "",
+  "divergences": "",
+  "corrections": [
+    { "rank": 1, "field": "", "correction": "" }
+  ]
+}
+
+agreementWithUser and divergences: 1–3 sentences each, summarizing alignment specifically on trend / structure / pattern / decision (not indicators). corrections: only genuine mismatches, ranked by trading significance. Return [] if everything is aligned.`;
+
+  try {
+    const compareMessage = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      system: SYSTEM_COMPARE,
+      messages: [{ role: 'user', content: comparePrompt }],
+    });
+
+    const compareRaw = stripFences(compareMessage.content[0].text);
+    const { ok, data: cmp } = parseOrError(compareRaw, 'Compare');
+    if (!ok) return;
+
+    data.narrativeIRead = data.narrativeIRead || {};
+    data.narrativeIRead.agreementWithUser = [data.narrativeIRead.agreementWithUser, cmp.agreementWithUser]
+      .filter(Boolean).join('  ');
+    data.narrativeIRead.divergences = [data.narrativeIRead.divergences, cmp.divergences]
+      .filter(Boolean).join('  ');
+
+    data.whereYouWentWrong = [...(cmp.corrections || []), ...(data.whereYouWentWrong || [])]
+      .map((c, i) => ({ ...c, rank: i + 1 }));
+  } catch (err) {
+    console.error('Compare-against-user-read failed:', err.message);
+  }
+}
+
 // ── UNIFIED ANALYSE ───────────────────────────────────────────────────────────
 router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Chart image is required' });
@@ -130,6 +205,10 @@ router.post('/', authMiddleware, upload.single('chart'), async (req, res) => {
   const {
     ticker, date, chartSource,
     volumeVsAverage, volumeCharacter, macd, rsiValue, bollingerBands,
+    primaryTrend, trendDuration, stockPhase, chartStructure: userChartStructure, opposingStructure,
+    patternName, decision: userDecision, confidence: userConfidence,
+    plannedEntry, plannedSL, plannedTarget, plannedRRR,
+    userEntry, userSL, userTarget,
   } = formData;
 
   const prompt = `Analyse the chart image and derive your full assessment independently.
@@ -227,6 +306,13 @@ IMPORTANT:
     const raw = stripFences(message.content[0].text);
     const { ok, data, message: parseMsg } = parseOrError(raw, 'Analyse');
     if (!ok) return res.status(502).json({ error: 'AI returned malformed JSON', detail: parseMsg, raw: raw.slice(0, 500) });
+
+    await compareAgainstUserRead(data, {
+      primaryTrend, trendDuration, stockPhase, userChartStructure, opposingStructure,
+      patternName, userDecision, userConfidence,
+      plannedEntry, plannedSL, plannedTarget, plannedRRR,
+      userEntry, userSL, userTarget,
+    });
 
     res.json({
       analysis: data,

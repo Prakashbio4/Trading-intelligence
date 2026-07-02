@@ -581,6 +581,12 @@ export default function Analyse() {
                 target: decision === 'Take' ? parseFloat(target)      : parseFloat(skipTarget) || null,
                 rrr:    decision === 'Take' ? rrr                     : skipRRR,
               }}
+              userRead={{
+                trend:          form.primaryTrend,
+                chartStructure: form.chartStructure,
+                pattern:        triggerPattern,
+                decision,
+              }}
             />
           </ErrorBoundary>
         )}
@@ -705,7 +711,35 @@ function DiffCell({ user, ai }) {
   );
 }
 
-function AIResponseDisplay({ analysis, userLevels }) {
+function normalizeRead(s) {
+  return (s || '').toString().trim().toLowerCase();
+}
+
+// Loose match: treats differently-worded but equivalent reads as a match.
+// Exact comparison for divergences with reasoning is handled by the AI's
+// own whereYouWentWrong / divergences text — this is just quick visibility.
+function readsMatch(user, ai) {
+  const nu = normalizeRead(user);
+  const na = normalizeRead(ai);
+  if (!nu || !na) return null;
+  return nu === na || nu.includes(na) || na.includes(nu);
+}
+
+function ReadCompareRow({ label, user, ai }) {
+  const match = readsMatch(user, ai);
+  const icon  = match === null ? '—' : match ? '✓' : '✗';
+  const cls   = match === null ? styles.lcEmpty : match ? styles.lcDiffGood : styles.lcDiffBad;
+  return (
+    <div className={styles.lcRow}>
+      <span className={styles.lcLabel}>{label}</span>
+      <span className={styles.lcVal}>{user || '—'}</span>
+      <span className={styles.lcVal}>{ai || '—'}</span>
+      <span className={cls}>{icon}</span>
+    </div>
+  );
+}
+
+function AIResponseDisplay({ analysis, userLevels, userRead }) {
   const { whatISee, narrativeIRead, myDecision, whereYouWentWrong } = analysis;
   const hasUserLevels = userLevels?.entry != null;
   const hasAILevels  = (myDecision?.verdict === 'TAKE' || myDecision?.verdict === 'WATCH') && myDecision?.entry != null;
@@ -758,6 +792,25 @@ function AIResponseDisplay({ analysis, userLevels }) {
           </div>
         )}
       </section>
+
+      {/* 1b — Your Read vs AI's Read (AI forms this independently, with no hints) */}
+      {userRead && (
+        <section className="card">
+          <div className="section-label">Your Read vs AI&apos;s Read</div>
+          <div className={styles.lcTable}>
+            <div className={styles.lcHeader}>
+              <span />
+              <span className={styles.lcColHead}>Yours</span>
+              <span className={styles.lcColHead}>AI</span>
+              <span className={styles.lcColHead} />
+            </div>
+            <ReadCompareRow label="Trend"     user={userRead.trend}          ai={whatISee?.trend?.direction} />
+            <ReadCompareRow label="Structure" user={userRead.chartStructure} ai={whatISee?.chartStructure?.pattern} />
+            <ReadCompareRow label="Pattern"   user={userRead.pattern}        ai={whatISee?.candlePattern?.name} />
+            <ReadCompareRow label="Decision"  user={userRead.decision?.toUpperCase()} ai={myDecision?.verdict} />
+          </div>
+        </section>
+      )}
 
       {/* 2 — Narrative I Read */}
       <section className="card">
