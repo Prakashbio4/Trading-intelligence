@@ -74,6 +74,21 @@ function calcRRR(entry, sl, target) {
   return Math.round(((t - e) / (e - s)) * 100) / 100;
 }
 
+// ── Format S&R level entries, guarding against non-primitive AI output ──────
+
+function formatLevel(v) {
+  if (v == null) return null;
+  if (typeof v === 'object') {
+    const val = v.value ?? v.price ?? v.level ?? v.support ?? v.resistance;
+    return val != null ? String(val) : null;
+  }
+  return String(v);
+}
+
+function formatLevels(levels) {
+  return [].concat(levels).map(formatLevel).filter(Boolean).join(' · ');
+}
+
 // ── S&R vs SL distance check (Varsity rule: must be within 4%) ───────────────
 
 function SRSlCheck({ support, resistance, sl, decision }) {
@@ -731,13 +746,13 @@ function AIResponseDisplay({ analysis, userLevels }) {
             <div className={styles.keyLevelRow}>
               <span className={styles.keyLevelLabel}>Support</span>
               <span className={styles.keyLevelVal}>
-                {[].concat(whatISee.keyLevels.support).join(' · ')}
+                {formatLevels(whatISee.keyLevels.support)}
               </span>
             </div>
             <div className={styles.keyLevelRow}>
               <span className={styles.keyLevelLabel}>Resistance</span>
               <span className={styles.keyLevelVal}>
-                {[].concat(whatISee.keyLevels.resistance).join(' · ')}
+                {formatLevels(whatISee.keyLevels.resistance)}
               </span>
             </div>
           </div>
