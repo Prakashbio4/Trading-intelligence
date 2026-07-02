@@ -106,9 +106,9 @@ function SignalCard({ signal }) {
                   {p.bias?.replace('_', ' ')}
                 </span>
                 <span className={styles.patternDates}>{p.startDate} → {p.completionDate}</span>
-                {p.trend && (
+                {p.priorTrend && (
                   <span className={styles.patternContext}>
-                    {p.trend} prior trend · {p.volumeRatio}x avg volume · {p.srDistancePct}% from S&amp;R
+                    Prior candles {p.priorTrend} · {p.volumeRatio}x avg volume · {p.srDistancePct}% from S&amp;R
                   </span>
                 )}
                 {p.levels && (
@@ -135,7 +135,7 @@ export default function Signals() {
   const [signals, setSignals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
-  const [days,    setDays]    = useState(3);
+  const [days,    setDays]    = useState(5);
 
   useEffect(() => {
     setLoading(true);
@@ -151,10 +151,10 @@ export default function Signals() {
       <div className={styles.header}>
         <div>
           <h1 className={styles.title}>Signals</h1>
-          <p className={styles.sub}>Your universe, scanned daily for candle + prior trend + volume + S&amp;R</p>
+          <p className={styles.sub}>Your universe, scanned daily for candle + prior candles + volume + S&amp;R</p>
         </div>
         <select className={styles.daysSelect} value={days} onChange={e => setDays(Number(e.target.value))}>
-          <option value={3}>Last 3 days</option>
+          <option value={5}>Last 5 days</option>
           <option value={14}>Last 14 days</option>
           <option value={30}>Last 30 days</option>
           <option value={60}>Last 60 days</option>

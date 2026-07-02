@@ -3,7 +3,7 @@ const multer = require('multer');
 const Anthropic = require('@anthropic-ai/sdk');
 const supabase = require('../lib/supabase');
 const authMiddleware = require('../middleware/auth');
-const { evaluateSetup, directionForBias, computeTradeLevels, TREND_LOOKBACK, SR_LOOKBACK } = require('../lib/setupContext');
+const { evaluateSetup, directionForBias, computeTradeLevels, SR_LOOKBACK } = require('../lib/setupContext');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -201,13 +201,15 @@ router.get('/insights-context', authMiddleware, async (req, res) => {
 });
 
 // GET /journal/signals — daily scan of your journal's stock universe for the
-// same 4-point checklist Analyse applies: a recognized candle pattern, an
-// aligned prior trend, above-average volume, and a stop loss near S&R.
-// Excludes anything you've already analysed for that date.
-// strict=false → skip the trend/volume/S&R context filter, show every raw
-//                TA-Lib pattern (useful for sanity-checking the filter itself)
+// 4-point checklist: a recognized candle pattern in the last 5 candles, the
+// 1-3 candles right before it contradicting/agreeing with its direction,
+// above-average volume (5-candle), and a stop loss near S&R (120-day swing
+// levels). Primary trend, RSI, Bollinger Bands and MACD stay a manual check
+// in Analyse. Excludes anything you've already analysed for that date.
+// strict=false → skip the checklist filter, show every raw TA-Lib pattern
+//                (useful for sanity-checking the filter itself)
 router.get('/signals', authMiddleware, async (req, res) => {
-  const days = Math.min(parseInt(req.query.days) || 3, 90);
+  const days = Math.min(parseInt(req.query.days) || 5, 90);
   const strict = req.query.strict !== 'false';
   const from = new Date();
   from.setDate(from.getDate() - days);
@@ -215,7 +217,7 @@ router.get('/signals', authMiddleware, async (req, res) => {
 
   const { data, error } = await supabase
     .from('ohlc_records')
-    .select('symbol, date, close, volume, vol_10day_avg, talib_patterns')
+    .select('symbol, date, close, volume, talib_patterns')
     .gte('date', fromStr)
     .neq('talib_patterns', '[]')
     .order('date', { ascending: false });
@@ -237,8 +239,9 @@ router.get('/signals', authMiddleware, async (req, res) => {
     })));
   }
 
-  // Fetch enough prior history per symbol to classify trend and detect S&R levels
-  const historyLimit = TREND_LOOKBACK + SR_LOOKBACK;
+  // Fetch enough prior history per symbol to detect S&R levels (the deepest
+  // window the checklist needs — the candle/volume checks only look back a
+  // handful of days, comfortably inside this).
   const historyBySymbol = {};
   for (const symbol of new Set(candidates.map(c => c.symbol))) {
     const latestDate = candidates
@@ -247,11 +250,11 @@ router.get('/signals', authMiddleware, async (req, res) => {
 
     const { data: hist } = await supabase
       .from('ohlc_records')
-      .select('date, high, low, close')
+      .select('date, open, high, low, close, volume')
       .eq('symbol', symbol)
       .lte('date', latestDate)
       .order('date', { ascending: false })
-      .limit(historyLimit);
+      .limit(SR_LOOKBACK + 10);
 
     historyBySymbol[symbol] = (hist || []).reverse(); // ascending
   }
@@ -259,12 +262,13 @@ router.get('/signals', authMiddleware, async (req, res) => {
   const signals = [];
   for (const r of candidates) {
     const history = historyBySymbol[r.symbol] || [];
-    const patternCandle = { close: r.close, volume: r.volume, vol_10day_avg: r.vol_10day_avg };
+    const patternCandle = { close: r.close, volume: r.volume };
 
     const qualifyingPatterns = r.talib_patterns
       .map(p => {
         const context = evaluateSetup({
           patternCandle,
+          volumeCandles: history.filter(c => c.date <= r.date),
           priorCandles: history.filter(c => c.date < p.startDate),
           bias: p.bias,
         });
