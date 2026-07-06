@@ -51,7 +51,6 @@ function patternMeta(triggerPattern) {
 }
 import styles from './Analyse.module.css';
 
-const CHART_SOURCES = ['Kite', 'TradingView', 'Chartink', 'Other'];
 const DECISIONS     = ['Take', 'Skip', 'Watch'];
 const CONFIDENCE    = ['High', 'Medium', 'Low'];
 
@@ -300,14 +299,12 @@ export default function Analyse() {
         {/* ── Context ──────────────────────────────────────────────────── */}
         <section className="card">
           <div className="section-label">Context</div>
-          <div className={styles.grid3}>
+          <div className={styles.grid2}>
             <SymbolField label="Stock symbol" required value={form.ticker}
               onChange={v => !locked && set('ticker', v)}
               placeholder="e.g. DEEPIND" />
             <TextField label="Date" value={form.date}
               onChange={v => !locked && set('date', v)} />
-            <SelectField label="Chart source" value={form.chartSource}
-              onChange={v => !locked && set('chartSource', v)} options={CHART_SOURCES} />
           </div>
         </section>
 
