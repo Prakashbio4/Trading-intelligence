@@ -433,6 +433,25 @@
 
 .outcomeRow { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
 
+.outcomeAlert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius);
+  border-left: 3px solid var(--amber);
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.outcomeAlertMuted {
+  border-left-color: var(--border);
+  background: var(--surface);
+  color: var(--muted);
+}
+
 .smallSelect {
   background: var(--surface);
   border: 1px solid var(--border);

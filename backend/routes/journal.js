@@ -120,6 +120,9 @@ function fromDb(row) {
     priceT3:        row.price_t3,
     priceT5:        row.price_t5,
     priceT10:       row.price_t10,
+    priceT15:       row.price_t15,
+    referenceClose: row.reference_close,
+    autoDetectedExit: row.auto_detected_exit ?? null,
     outcomeAuto:    row.outcome_auto ?? {},
     talibPatterns:  row.talib_patterns ?? [],
   };
@@ -663,6 +666,22 @@ router.post('/:id/chat', authMiddleware, async (req, res) => {
   await fetchImage(session.outcomeChartEntry);
   await fetchImage(session.outcomeChartExit);
 
+  // Real, verified price data for the period after the decision — available
+  // regardless of whether the user uploaded outcome screenshots, so chat
+  // works even when no chart was ever uploaded.
+  const { data: postDecisionCandles } = await supabase
+    .from('ohlc_records')
+    .select('date, open, high, low, close, volume')
+    .eq('symbol', session.ticker)
+    .gt('date', session.date)
+    .order('date', { ascending: true })
+    .limit(30);
+
+  const priceHistoryBlock = postDecisionCandles?.length
+    ? `POST-DECISION PRICE DATA (verified market data, not a screenshot):\n` +
+      postDecisionCandles.map(c => `${c.date}: O ${c.open} H ${c.high} L ${c.low} C ${c.close} Vol ${c.volume}`).join('\n')
+    : null;
+
   const aiContext = session.aiWhatISee
     ? [
         `WHAT I SEE:\n${JSON.stringify(session.aiWhatISee, null, 2)}`,
@@ -679,13 +698,19 @@ router.post('/:id/chat', authMiddleware, async (req, res) => {
     : JSON.stringify(session.userInput, null, 2);
 
   const hasOutcomeCharts = session.outcomeChartEntry || session.outcomeChartExit;
+  const hasPriceHistory  = !!priceHistoryBlock;
+  const outcomeGuidance = [
+    hasOutcomeCharts && 'The student has also uploaded candle screenshots showing the chart at entry and/or what happened after the trade — use these for anything the raw price data alone can\'t show, like drawn levels or their own annotations.',
+    hasPriceHistory && 'Real post-decision OHLC data is provided below (verified market data) — treat it as ground truth for what the stock actually did, more reliable than reading a screenshot.',
+  ].filter(Boolean).join(' ');
+
   const systemPrompt = `You are a technical analysis educator reviewing a chart with a student.
 
 You already analysed this chart and gave the student the verdict below. The student is now asking follow-up questions about YOUR analysis.
 When answering, refer back to what you said — your own trend read, your candle pattern call, your decision, your levels. Own your analysis.
 Be specific — reference visible price levels, candle shapes, indicator readings, and anything else you can see in the chart image.
 Explain your reasoning clearly so the student understands the "why", not just the "what".
-Do not give buy or sell recommendations. Keep answers focused and educational.${hasOutcomeCharts ? '\n\nThe student has uploaded additional candle screenshots showing the chart at entry and/or what happened after the trade. Use these to give detailed feedback on whether the setup played out as expected, what the market actually did, and what the student can learn from the difference between the setup and the outcome.' : ''}
+Do not give buy or sell recommendations. Keep answers focused and educational.${outcomeGuidance ? `\n\n${outcomeGuidance} Use this to give detailed feedback on whether the setup played out as expected, what the market actually did, and what the student can learn from the difference between the setup and the outcome.` : ''}
 
 SESSION CONTEXT:
 Ticker: ${session.ticker}
@@ -695,7 +720,7 @@ USER'S READ:
 ${userContext}
 
 YOUR PRIOR ANALYSIS:
-${aiContext}`;
+${aiContext}${priceHistoryBlock ? `\n\n${priceHistoryBlock}` : ''}`;
 
   const isFirstMessage = history.length === 0;
   const newUserContent = isFirstMessage

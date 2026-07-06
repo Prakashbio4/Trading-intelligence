@@ -101,6 +101,12 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
 }
 function mono(v) { return v != null ? <span className="mono">{v}</span> : null; }
+function daysSince(dateStr) {
+  if (!dateStr) return 0;
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
+}
+
+const STALE_DAYS = 60; // open Take trade past this with no result logged -> flagged for review
 
 // ── Shared tiny components ────────────────────────────────────────────────────
 
@@ -691,14 +697,16 @@ function CandleUploadSection({ session, onSaved }) {
 
   return (
     <div className={styles.candleSection}>
-      <SectionHead>Post-Trade Chart</SectionHead>
+      <SectionHead>Post-Trade Chart (optional)</SectionHead>
       <p className={styles.contextHint}>
-        Upload a chart showing what happened after you made your decision.
+        What actually happened is already pulled from real price data above — this is only for
+        bringing your own marked-up chart into the discussion below (drawn levels, an alternate
+        pattern you spotted, anything the raw numbers don't show).
       </p>
       <div className={styles.candleSlots}>
         <CandleUploadSlot
-          label="Post-trade chart"
-          hint="What the stock did after your entry/skip/watch"
+          label="Your annotated chart"
+          hint="Optional — only if you want to discuss your own markup with the AI"
           existingUrl={session.outcomeChartExit}
           file={exitFile}
           onFile={setExitFile}
@@ -742,7 +750,7 @@ function OutcomeEditor({ session, onSaved }) {
 
   // Skip/Watch fields
   const [direction,    setDirection]    = useState(existing.direction    ?? '');
-  const [move,         setMove]         = useState(existing.move         ?? '');
+  const move = existing.move ?? ''; // no input for this anymore — auto snapshots replaced it; preserved read-only for legacy sessions
   const [decisionOk,   setDecisionOk]   = useState(existing.decisionCorrect ?? '');
 
   // Shared fields
@@ -751,6 +759,20 @@ function OutcomeEditor({ session, onSaved }) {
   const [sectorNote,   setSectorNote]   = useState(existing.sectorNote   ?? '');
   const [notes,        setNotes]        = useState(session.notes         ?? '');
   const [saving,       setSaving]       = useState(false);
+
+  // Auto-detected hit (nightly scan of daily high/low vs planned target/SL) —
+  // never auto-fills, just flags so the user can confirm their real exit.
+  const autoExit          = isTake ? session.autoDetectedExit : null;
+  const showAutoExitAlert = !!autoExit && actualExit === '';
+  const isStale           = isTake && !session.actualExit && !existing.result
+    && daysSince(session.date) > STALE_DAYS;
+  const readyToReview     = !isTake && session.outcomeAuto?.t15 != null && !existing.decisionCorrect;
+
+  function useDetectedExit() {
+    setResult(autoExit.type === 'hit_target' ? 'hit_target' : 'stopped_out');
+    setActualExit(String(autoExit.price));
+    setTradeExitDate(autoExit.date);
+  }
 
   async function save() {
     setSaving(true);
@@ -786,6 +808,28 @@ function OutcomeEditor({ session, onSaved }) {
 
   return (
     <div className={styles.outcomeSection}>
+
+      {showAutoExitAlert && (
+        <div className={styles.outcomeAlert}>
+          <span>
+            {autoExit.type === 'hit_target' ? 'Target' : 'Stop-loss'} likely hit on{' '}
+            {formatDate(autoExit.date)} at ₹{autoExit.price} — confirm your actual exit below.
+          </span>
+          <button className="btn btn-ghost" type="button" onClick={useDetectedExit}>Use this</button>
+        </div>
+      )}
+
+      {isStale && (
+        <div className={`${styles.outcomeAlert} ${styles.outcomeAlertMuted}`}>
+          Open {daysSince(session.date)} days with no result logged — needs review.
+        </div>
+      )}
+
+      {readyToReview && (
+        <div className={`${styles.outcomeAlert} ${styles.outcomeAlertMuted}`}>
+          T+15 price data is in — your read-accuracy check for this {session.decision?.toLowerCase()} is ready below.
+        </div>
+      )}
 
       {/* ── TAKE outcome ── */}
       {isTake && (
@@ -883,11 +927,6 @@ function OutcomeEditor({ session, onSaved }) {
               </SmallSelect>
             </div>
             <div className={styles.outcomeField}>
-              <span className={styles.fieldLabel}>Approximate move</span>
-              <input type="text" placeholder='e.g. "up 8% in 4 sessions"'
-                value={move} onChange={e => setMove(e.target.value)} className={styles.smallInput} />
-            </div>
-            <div className={styles.outcomeField}>
               <span className={styles.fieldLabel}>Was the {session.decision} right?</span>
               <SmallSelect value={decisionOk} onChange={setDecisionOk} placeholder="Select…">
                 <option value="yes">Yes — right to {session.decision?.toLowerCase()}</option>
@@ -907,25 +946,6 @@ function OutcomeEditor({ session, onSaved }) {
         </>
       )}
 
-      {/* ── Trade dates + quantity (shared for Take; dates only for Skip/Watch to record observation window) ── */}
-      {!isTake && (
-        <div className={styles.actualLevels}>
-          <span className={styles.fieldLabel}>Observation window</span>
-          <div className={styles.levelInputRow}>
-            <div>
-              <span className={styles.fieldLabel} style={{ display: 'block', marginBottom: 4 }}>From date</span>
-              <input type="date" value={tradeEntryDate}
-                onChange={e => setTradeEntryDate(e.target.value)} className={styles.smallInput} />
-            </div>
-            <div>
-              <span className={styles.fieldLabel} style={{ display: 'block', marginBottom: 4 }}>To date</span>
-              <input type="date" value={tradeExitDate}
-                onChange={e => setTradeExitDate(e.target.value)} className={styles.smallInput} />
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Market context (shared) ── */}
       <div className={styles.contextBlock}>
         <SectionHead>Market Context at Decision Time</SectionHead>
@@ -934,7 +954,7 @@ function OutcomeEditor({ session, onSaved }) {
           placeholder="What was the broader market doing? (Nifty trend, global events, FII activity, pre-event nervousness…)"
           className={styles.notesArea} rows={3} />
         <textarea value={sectorNote} onChange={e => setSectorNote(e.target.value)}
-          placeholder="What was the sector doing? (rotation, specific news, hot or cooling…)"
+          placeholder="What was the sector or the stock itself doing? (rotation, block deals, results, corporate actions, specific news…)"
           className={styles.notesArea} rows={2} style={{ marginTop: 8 }} />
       </div>
 
@@ -943,7 +963,7 @@ function OutcomeEditor({ session, onSaved }) {
         <div className={styles.autoOutcome}>
           <SectionHead>Price Snapshots (Auto)</SectionHead>
           <div className={styles.snapshotRow}>
-            {[3, 5, 10].map(n => {
+            {(isTake ? [3, 5, 10] : [3, 10, 15]).map(n => {
               const snap = session.outcomeAuto[`t${n}`];
               if (!snap) return null;
               const up = snap.pct_vs_entry >= 0;
@@ -963,9 +983,10 @@ function OutcomeEditor({ session, onSaved }) {
         </div>
       )}
 
-      {/* ── Notes (shared) ── */}
+      {/* ── Notes (shared) — reflection, not a recap: price action and market/sector
+          context are already captured above, so this is for the lesson, not the facts. ── */}
       <textarea value={notes} onChange={e => setNotes(e.target.value)}
-        placeholder={isTake ? "What actually happened? Anything you'd do differently?" : 'Any other observations about this Skip/Watch decision?'}
+        placeholder="What would you do differently next time? What did this teach you?"
         className={styles.notesArea} rows={3} />
 
       <div className={styles.outcomeFooter}>
