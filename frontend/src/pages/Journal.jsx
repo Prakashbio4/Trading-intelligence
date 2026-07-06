@@ -774,6 +774,17 @@ function OutcomeEditor({ session, onSaved }) {
     setTradeExitDate(autoExit.date);
   }
 
+  const [dismissing, setDismissing] = useState(false);
+  async function dismissAutoExit() {
+    setDismissing(true);
+    try {
+      const updated = await updateSession(session.id, { dismissAutoExit: true });
+      onSaved(updated);
+    } finally {
+      setDismissing(false);
+    }
+  }
+
   async function save() {
     setSaving(true);
     try {
@@ -815,7 +826,12 @@ function OutcomeEditor({ session, onSaved }) {
             {autoExit.type === 'hit_target' ? 'Target' : 'Stop-loss'} likely hit on{' '}
             {formatDate(autoExit.date)} at ₹{autoExit.price} — confirm your actual exit below.
           </span>
-          <button className="btn btn-ghost" type="button" onClick={useDetectedExit}>Use this</button>
+          <div style={{ display: 'flex', gap: 'var(--sp-2)', flexShrink: 0 }}>
+            <button className="btn btn-ghost" type="button" onClick={useDetectedExit}>Use this</button>
+            <button className="btn btn-ghost" type="button" onClick={dismissAutoExit} disabled={dismissing}>
+              {dismissing ? 'Dismissing…' : 'Not closed'}
+            </button>
+          </div>
         </div>
       )}
 

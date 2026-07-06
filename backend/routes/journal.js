@@ -418,7 +418,7 @@ router.post('/', authMiddleware, async (req, res) => {
 // PATCH /journal/:id
 router.patch('/:id', authMiddleware, async (req, res) => {
   const { outcome, exitPrice, notes, actualEntry, actualExit, holdingPeriod, outcomeData,
-          tradeEntryDate, tradeExitDate, quantity } = req.body;
+          tradeEntryDate, tradeExitDate, quantity, dismissAutoExit } = req.body;
 
   try {
     const { data: existing, error: fetchErr } = await supabase
@@ -443,6 +443,14 @@ router.patch('/:id', authMiddleware, async (req, res) => {
     if (tradeEntryDate   !== undefined) patch.trade_entry_date = tradeEntryDate;
     if (tradeExitDate    !== undefined) patch.trade_exit_date  = tradeExitDate;
     if (quantity         !== undefined) patch.quantity = quantity;
+
+    // Reject a false-positive auto-detected exit — remember the crossing's
+    // date so the nightly scan won't re-flag it, but clear the flag itself
+    // so scanning resumes for any genuinely later crossing.
+    if (dismissAutoExit) {
+      patch.auto_exit_dismissed_at = session.autoDetectedExit?.date ?? null;
+      patch.auto_detected_exit = null;
+    }
 
     // Derive outcome label from outcomeData when present
     if (outcomeData !== undefined) {

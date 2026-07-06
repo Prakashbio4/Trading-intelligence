@@ -111,7 +111,7 @@ async function populateSkipWatchSnapshots() {
 async function scanTakeHitDetection() {
   const { data: sessions, error } = await supabase
     .from('journal_sessions')
-    .select('id, ticker, date, trade_entry_date, planned_target, planned_sl')
+    .select('id, ticker, date, trade_entry_date, planned_target, planned_sl, auto_exit_dismissed_at')
     .eq('decision', 'Take')
     .is('actual_exit', null)
     .is('auto_detected_exit', null)
@@ -123,7 +123,13 @@ async function scanTakeHitDetection() {
   let flagged = 0;
   for (const s of sessions) {
     const fromDate = s.trade_entry_date || s.date;
-    const candles = await getCandlesSince(s.ticker, fromDate);
+    let candles = await getCandlesSince(s.ticker, fromDate);
+    // A previously dismissed crossing (confirmed false positive — e.g. price
+    // touched the level but no real order filled) shouldn't be re-flagged;
+    // only look at candles after that date for a genuinely new crossing.
+    if (s.auto_exit_dismissed_at) {
+      candles = candles.filter(c => c.date > s.auto_exit_dismissed_at);
+    }
     if (!candles.length) continue;
 
     let hit = null;
