@@ -2,6 +2,7 @@
 
 const supabase = require('../lib/supabase');
 const { fetchDailyOhlc } = require('../lib/groww');
+const { findNseSymbolCandidates } = require('../lib/growwInstruments');
 const { detectPatterns } = require('../lib/patterns');
 
 const LOOKBACK_DAYS = 20; // fetch 20 days so 14-day window always has full data + pattern detection needs prior candles
@@ -50,6 +51,19 @@ async function recordFailure(symbol, message, priorFailures, kind = 'error') {
     }`);
   }
 
+  if (isInvalidSymbol) {
+    try {
+      const [candidate] = await findNseSymbolCandidates(symbol);
+      if (candidate) {
+        updates.suggested_symbol = candidate.tradingSymbol;
+        updates.suggested_symbol_name = candidate.name;
+        console.warn(`[fetchOhlc] ${symbol}: possible correct symbol is ${candidate.tradingSymbol} (${candidate.name}) — needs manual confirmation`);
+      }
+    } catch (lookupErr) {
+      console.error(`[fetchOhlc] ${symbol}: instrument lookup failed — ${lookupErr.message}`);
+    }
+  }
+
   const { error } = await supabase.from('stock_universe').update(updates).eq('symbol', symbol);
   if (error) console.error(`[fetchOhlc] ${symbol}: failed to record fetch status — ${error.message}`);
 }
@@ -57,7 +71,7 @@ async function recordFailure(symbol, message, priorFailures, kind = 'error') {
 async function recordSuccess(symbol) {
   const { error } = await supabase
     .from('stock_universe')
-    .update({ last_fetch_status: 'ok', last_error: null, consecutive_failures: 0 })
+    .update({ last_fetch_status: 'ok', last_error: null, consecutive_failures: 0, suggested_symbol: null, suggested_symbol_name: null })
     .eq('symbol', symbol);
   if (error) console.error(`[fetchOhlc] ${symbol}: failed to record fetch status — ${error.message}`);
 }

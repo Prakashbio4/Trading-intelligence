@@ -71,6 +71,37 @@ router.delete('/:symbol', async (req, res) => {
   res.json({ deleted: symbol });
 });
 
+// POST /universe/:symbol/apply-suggestion — accept the auto-detected correct
+// symbol (set by fetchOhlc after a GA001 "invalid symbol" failure) and retry.
+// Renames the row rather than updating in place since symbol is the primary key.
+router.post('/:symbol/apply-suggestion', async (req, res) => {
+  const symbol = req.params.symbol.toUpperCase();
+
+  const { data: row, error: fetchErr } = await supabase
+    .from('stock_universe')
+    .select('*')
+    .eq('symbol', symbol)
+    .single();
+  if (fetchErr || !row) return res.status(404).json({ error: 'symbol not found' });
+  if (!row.suggested_symbol) return res.status(400).json({ error: 'no suggestion available for this symbol' });
+
+  const newSymbol = row.suggested_symbol;
+
+  const { error: upsertErr } = await supabase
+    .from('stock_universe')
+    .upsert({ symbol: newSymbol, exchange: row.exchange, sector: row.sector, active: true }, { onConflict: 'symbol' });
+  if (upsertErr) return res.status(500).json({ error: upsertErr.message });
+
+  const { error: deleteErr } = await supabase.from('stock_universe').delete().eq('symbol', symbol);
+  if (deleteErr) return res.status(500).json({ error: deleteErr.message });
+
+  processSymbol(newSymbol).catch(err =>
+    console.error(`[universe] Background OHLC fetch failed for ${newSymbol}:`, err.message)
+  );
+
+  res.json({ oldSymbol: symbol, newSymbol });
+});
+
 // POST /universe/fetch-now — manually trigger OHLC fetch for all active stocks
 router.post('/fetch-now', async (_req, res) => {
   const { runFetchOhlc } = require('../jobs/fetchOhlc');
