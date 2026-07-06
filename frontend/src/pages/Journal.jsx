@@ -108,6 +108,23 @@ function daysSince(dateStr) {
 
 const STALE_DAYS = 60; // open Take trade past this with no result logged -> flagged for review
 
+// Same three states surfaced inside OutcomeEditor, summarized for the list
+// row so you don't have to open every session to find what needs attention.
+function pendingNudge(s) {
+  const isTake = s.decision === 'Take';
+  const od = s.outcomeData ?? {};
+  if (isTake && s.autoDetectedExit && s.actualExit == null) {
+    return { label: 'Confirm exit', tone: 'amber' };
+  }
+  if (isTake && !s.actualExit && !od.result && daysSince(s.date) > STALE_DAYS) {
+    return { label: 'Stale', tone: 'muted' };
+  }
+  if (!isTake && s.outcomeAuto?.t15 != null && !od.decisionCorrect) {
+    return { label: 'Ready to review', tone: 'muted' };
+  }
+  return null;
+}
+
 // ── Shared tiny components ────────────────────────────────────────────────────
 
 function Row({ label, value }) {
@@ -1281,6 +1298,7 @@ export default function Journal() {
                 const outcomeDetail = !s.outcome && od
                   ? (od.direction === 'as_expected' ? '↑ as read' : od.direction === 'opposite' ? '↓ opposite' : od.direction === 'flat' ? '→ flat' : null)
                   : null;
+                const nudge = pendingNudge(s);
                 return (
                   <tr key={s.id} className={styles.row} onClick={() => setSelected(s)}>
                     <td className={styles.checkCol} onClick={e => { e.stopPropagation(); toggleSelect(s.id); }}>
@@ -1306,7 +1324,9 @@ export default function Journal() {
                         : <span className="muted">—</span>}
                     </td>
                     <td>
-                      {outcomeLabel
+                      {nudge
+                        ? <span className={`badge ${nudge.tone === 'amber' ? 'badge-amber' : 'badge-muted'}`}>{nudge.label}</span>
+                        : outcomeLabel
                         ? <span className={`badge ${OUTCOME_CLASS[outcomeLabel] ?? 'badge-muted'}`}>{outcomeLabel}</span>
                         : outcomeDetail
                         ? <span className="muted">{outcomeDetail}</span>
