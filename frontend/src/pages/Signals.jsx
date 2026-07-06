@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import CandleChart from '../components/CandleChart.jsx';
 import styles from './Signals.module.css';
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -18,46 +19,6 @@ async function fetchWindow(symbol, date) {
   const res = await fetch(`${BASE}/universe/${symbol}/window?date=${date}&windowSize=7`, { headers: authHeaders() });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
-}
-
-// ── Mini candlestick chart ────────────────────────────────────────────────────
-
-function CandleChart({ candles }) {
-  if (!candles?.length) return null;
-
-  const W = 320, H = 140, PAD = 16, CANDLE_W = 10;
-  const prices = candles.flatMap(c => [c.high, c.low]);
-  const minP = Math.min(...prices);
-  const maxP = Math.max(...prices);
-  const range = maxP - minP || 1;
-
-  const toY = p => PAD + ((maxP - p) / range) * (H - PAD * 2);
-  const slotW = (W - PAD * 2) / candles.length;
-
-  return (
-    <svg width={W} height={H} className={styles.chart}>
-      {candles.map((c, i) => {
-        const x = PAD + i * slotW + slotW / 2;
-        const bullish = c.close >= c.open;
-        const color = c.zone === 'pattern' ? '#f59e0b'
-          : c.zone === 'today' ? '#6366f1'
-          : bullish ? '#22c55e' : '#ef4444';
-        const bodyTop    = toY(Math.max(c.open, c.close));
-        const bodyBot    = toY(Math.min(c.open, c.close));
-        const bodyH      = Math.max(bodyBot - bodyTop, 1);
-
-        return (
-          <g key={i}>
-            {/* Wick */}
-            <line x1={x} y1={toY(c.high)} x2={x} y2={toY(c.low)} stroke={color} strokeWidth={1} />
-            {/* Body */}
-            <rect x={x - CANDLE_W / 2} y={bodyTop} width={CANDLE_W} height={bodyH}
-              fill={bullish ? color : 'transparent'} stroke={color} strokeWidth={1.5} />
-          </g>
-        );
-      })}
-    </svg>
-  );
 }
 
 // ── Single signal card ──────────────────────────────────────────────────────

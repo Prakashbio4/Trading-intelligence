@@ -3,6 +3,7 @@ import styles from './Nav.module.css';
 const TABS = [
   { id: 'analyse',  label: 'Analyse'  },
   { id: 'journal',  label: 'Journal'  },
+  { id: 'learn',    label: 'Learn' },
   { id: 'insights', label: 'Insights' },
   { id: 'signals',  label: 'Signals' },
 ];

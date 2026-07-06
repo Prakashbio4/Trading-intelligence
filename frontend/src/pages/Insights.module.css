@@ -222,8 +222,32 @@
 .chatInput:focus { border-color: var(--accent); }
 .chatInput::placeholder { color: var(--muted); }
 
+/* ── Learn module panels ── */
+.learnPanel { display: flex; flex-direction: column; gap: var(--sp-2); }
+
+.learnTable { display: flex; flex-direction: column; }
+.learnRow {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.learnRow:last-child { border-bottom: none; }
+.learnPatternName { font-weight: 600; }
+
+.calibrationBars { display: flex; flex-direction: column; gap: var(--sp-3); }
+.calibrationRow { display: grid; grid-template-columns: 60px 1fr auto; align-items: center; gap: var(--sp-3); }
+.calibrationLabel { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.calibrationTrack { height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+.calibrationFill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.calibrationWarning { color: var(--danger); font-size: 12px; margin-top: var(--sp-1); }
+
 @media (max-width: 640px) {
   .page { padding: var(--sp-5) var(--sp-4); }
   .cardGrid { grid-template-columns: 1fr; }
   .msgText { max-width: 100%; }
+  .learnRow { grid-template-columns: 1fr; gap: var(--sp-1); }
 }

@@ -4,11 +4,12 @@ import Analyse from './pages/Analyse.jsx';
 import Journal from './pages/Journal.jsx';
 import Insights from './pages/Insights.jsx';
 import Signals from './pages/Signals.jsx';
+import Learn from './pages/Learn.jsx';
 import Login from './pages/Login.jsx';
 import { getMe, pingHealth } from './api/index.js';
 import styles from './App.module.css';
 
-const PAGES = { analyse: Analyse, journal: Journal, insights: Insights, signals: Signals };
+const PAGES = { analyse: Analyse, journal: Journal, insights: Insights, signals: Signals, learn: Learn };
 
 export default function App() {
   const [tab, setTab] = useState('analyse');

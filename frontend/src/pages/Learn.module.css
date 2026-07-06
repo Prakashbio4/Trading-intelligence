@@ -1,0 +1,81 @@
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--sp-8) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.header { display: flex; flex-direction: column; gap: var(--sp-2); }
+.title { font-size: 28px; font-weight: 700; }
+.subtitle { color: var(--muted); }
+
+.error { color: var(--danger); }
+
+.nudges { display: flex; flex-direction: column; gap: var(--sp-3); }
+.nudgeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+.nudgeRow:last-child { border-bottom: none; }
+.nudgeMsg { flex: 1; }
+.nudgeActions { display: flex; gap: var(--sp-2); flex-shrink: 0; }
+
+.startCard, .intakeCard { display: flex; flex-direction: column; gap: var(--sp-3); }
+.startDesc { color: var(--muted); font-size: 13px; }
+
+.intakeForm { display: flex; flex-direction: column; gap: var(--sp-2); }
+.intakeQueue { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+
+.progress { color: var(--muted); font-family: var(--font-mono); font-size: 12px; margin-bottom: var(--sp-3); }
+
+.chartCall { display: flex; flex-direction: column; gap: var(--sp-4); align-items: center; }
+
+.callForm {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-5);
+}
+.callGroup { display: flex; flex-direction: column; gap: var(--sp-2); }
+.callLabel { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.tapRow { display: flex; gap: var(--sp-2); }
+.tapRow .btn { flex: 1; justify-content: center; }
+
+.revealRow {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.finishRow { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); padding: var(--sp-10) 0; }
+
+.scoreGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3); }
+.scoreCard { text-align: center; }
+.scoreLabel { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: var(--sp-2); }
+.scoreValue { font-size: 28px; font-weight: 700; }
+
+.aiEval {}
+.aiEvalText { white-space: pre-wrap; line-height: 1.6; }
+
+.reviewList { display: flex; flex-direction: column; gap: var(--sp-2); }
+.reviewRow { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.reviewRow:last-child { border-bottom: none; }
+.reviewIndex { font-family: var(--font-mono); color: var(--muted); width: 28px; flex-shrink: 0; }
+
+@media (max-width: 640px) {
+  .scoreGrid { grid-template-columns: 1fr; }
+}

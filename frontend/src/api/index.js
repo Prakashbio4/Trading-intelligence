@@ -149,3 +149,73 @@ export async function sendInsightsChat(message, context, history) {
   });
   return handleResponse(res);
 }
+
+// ── Learn module ─────────────────────────────────────────────────────────────
+
+export async function startLearnSession(opts = {}) {
+  const res = await fetch(`${BASE}/learn/sessions`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(opts),
+  });
+  return handleResponse(res);
+}
+
+export async function getLearnSession(id) {
+  const res = await fetch(`${BASE}/learn/sessions/${id}`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+export async function answerLearnChart(chartId, answer) {
+  const res = await fetch(`${BASE}/learn/charts/${chartId}/answer`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(answer),
+  });
+  return handleResponse(res);
+}
+
+export async function completeLearnSession(id) {
+  const res = await fetch(`${BASE}/learn/sessions/${id}/complete`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+}
+
+export async function getLearnNudges() {
+  const res = await fetch(`${BASE}/learn/nudges`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+export async function dismissLearnNudge(id) {
+  const res = await fetch(`${BASE}/learn/nudges/${id}/dismiss`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+}
+
+export async function getLearnPatterns() {
+  const res = await fetch(`${BASE}/learn/patterns`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+export async function submitLearnIntake(patternSlug, sourceNote) {
+  const res = await fetch(`${BASE}/learn/intake`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ patternSlug, sourceNote }),
+  });
+  return handleResponse(res);
+}
+
+export async function getLearnIntake() {
+  const res = await fetch(`${BASE}/learn/intake`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
+export async function getLearnInsights() {
+  const res = await fetch(`${BASE}/learn/insights`, { headers: authHeaders() });
+  return handleResponse(res);
+}

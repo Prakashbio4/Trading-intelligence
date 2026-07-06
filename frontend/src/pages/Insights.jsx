@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import ChatPanel from '../components/ChatPanel.jsx';
+import { getLearnInsights } from '../api/index.js';
 import styles from './Insights.module.css';
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -16,12 +17,14 @@ export default function Insights() {
   const [context, setContext]   = useState(null);
   const [loading, setLoading]   = useState(true);
   const [error,   setError]     = useState(null);
+  const [learn,   setLearn]     = useState(null);
 
   useEffect(() => {
     fetch(`${BASE}/journal/insights-context`)
       .then(r => r.json())
       .then(data => { setContext(data); setLoading(false); })
       .catch(err => { setError(err.message); setLoading(false); });
+    getLearnInsights().then(setLearn).catch(() => {});
   }, []);
 
   const total    = context?.total ?? 0;
@@ -87,7 +90,111 @@ export default function Insights() {
         ))}
       </div>
 
+      {/* ── Learn module panels ── */}
+      {learn && (
+        <>
+          <LearnPerformancePanel rows={learn.patternPerformance} />
+          <CalibrationPanel rows={learn.calibration} />
+          <JournalBridgePanel rows={learn.journalBridge} />
+        </>
+      )}
+
     </div>
+  );
+}
+
+// ── Learn performance panel — direct read from learn_pattern_performance, no AI ──
+
+function LearnPerformancePanel({ rows }) {
+  const ranked = [...(rows || [])].sort((a, b) => (a.detection_rate_pct ?? 0) - (b.detection_rate_pct ?? 0));
+  return (
+    <section className={`card ${styles.learnPanel}`}>
+      <div className="section-label">Learn — pattern performance</div>
+      {!ranked.length ? (
+        <p className="muted">No Learn sessions yet — patterns you drill will show up here.</p>
+      ) : (
+        <div className={styles.learnTable}>
+          {ranked.map(r => (
+            <div key={r.pattern_slug} className={styles.learnRow}>
+              <span className={styles.learnPatternName}>{r.display_name}</span>
+              <span className={r.detection_rate_pct >= 70 ? 'teal' : r.detection_rate_pct >= 50 ? 'amber' : 'danger'}>
+                {r.detection_rate_pct != null ? `${r.detection_rate_pct}% detection` : '—'}
+              </span>
+              <span className="muted">{r.false_positive_rate_pct != null ? `${r.false_positive_rate_pct}% false positive` : ''}</span>
+              <span className="muted">{r.total_exposures} exposures</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Calibration curve — accuracy by confidence bucket ───────────────────────
+
+function CalibrationPanel({ rows }) {
+  const order = { LOW: 0, MEDIUM: 1, HIGH: 2 };
+  const sorted = [...(rows || [])].sort((a, b) => order[a.user_confidence] - order[b.user_confidence]);
+  return (
+    <section className={`card ${styles.learnPanel}`}>
+      <div className="section-label">Confidence calibration</div>
+      {!sorted.length ? (
+        <p className="muted">Answer enough Learn charts to see whether your confidence tracks your accuracy.</p>
+      ) : (
+        <div className={styles.calibrationBars}>
+          {sorted.map(r => (
+            <div key={r.user_confidence} className={styles.calibrationRow}>
+              <span className={styles.calibrationLabel}>{r.user_confidence}</span>
+              <div className={styles.calibrationTrack}>
+                <div
+                  className={styles.calibrationFill}
+                  style={{
+                    width: `${r.accuracy_pct}%`,
+                    background: r.user_confidence === 'HIGH' && r.accuracy_pct < 60 ? 'var(--danger)' : 'var(--accent)',
+                  }}
+                />
+              </div>
+              <span className="muted">{r.accuracy_pct}% accurate ({r.total_calls})</span>
+            </div>
+          ))}
+          {sorted.some(r => r.user_confidence === 'HIGH' && r.accuracy_pct < 60) && (
+            <p className={styles.calibrationWarning}>
+              HIGH confidence is landing near a coin flip — your conviction isn't tracking your accuracy yet.
+            </p>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── Journal ↔ Learn bridge — conviction gap vs recognition gap, no AI ───────
+
+function JournalBridgePanel({ rows }) {
+  const flagged = (rows || []).filter(r => r.diagnostic === 'conviction_gap' || r.diagnostic === 'recognition_gap');
+  return (
+    <section className={`card ${styles.learnPanel}`}>
+      <div className="section-label">Journal ↔ Learn diagnostic</div>
+      {!flagged.length ? (
+        <p className="muted">No conviction or recognition gaps detected yet.</p>
+      ) : (
+        <div className={styles.learnTable}>
+          {flagged.map(r => (
+            <div key={r.pattern_name} className={styles.learnRow}>
+              <span className={styles.learnPatternName}>{r.pattern_name}</span>
+              <span className={`badge ${r.diagnostic === 'conviction_gap' ? 'badge-amber' : 'badge-red'}`}>
+                {r.diagnostic === 'conviction_gap' ? 'Conviction gap' : 'Recognition gap'}
+              </span>
+              <span className="muted">
+                {r.diagnostic === 'conviction_gap'
+                  ? `You detect it ${r.learn_detection_rate_pct}% of the time but only act on it ${r.journal_action_rate_pct}% of the time`
+                  : `Detection rate ${r.learn_detection_rate_pct}% but it's appeared in ${r.journal_encounters} journal sessions — drill it`}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

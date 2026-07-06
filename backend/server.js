@@ -8,8 +8,10 @@ const analyzeRouter   = require('./routes/analyze');
 const journalRouter   = require('./routes/journal');
 const authRouter      = require('./routes/auth');
 const universeRouter  = require('./routes/universe');
+const learnRouter     = require('./routes/learn');
 const { runFetchOhlc } = require('./jobs/fetchOhlc');
 const { runPopulateOutcomes } = require('./jobs/populateOutcomes');
+const { runLearnNudges } = require('./jobs/learnNudges');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -34,6 +36,7 @@ app.use('/auth',     authRouter);
 app.use('/analyze',  analyzeRouter);
 app.use('/journal',  journalRouter);
 app.use('/universe', universeRouter);
+app.use('/learn',    learnRouter);
 
 app.get('/health', (_req, res) =>
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
@@ -49,6 +52,13 @@ cron.schedule('15 16 * * 1-5', () => {
 cron.schedule('45 16 * * 1-5', () => {
   console.log('[cron] Triggering outcome population...');
   runPopulateOutcomes().catch(err => console.error('[cron] Outcome population error:', err.message));
+}, { timezone: 'Asia/Kolkata' });
+
+// Learn nudges — threshold logic only, no AI. Runs after the outcome job so
+// today's journal outcomes are already reflected.
+cron.schedule('0 17 * * 1-5', () => {
+  console.log('[cron] Triggering learn nudge scan...');
+  runLearnNudges().catch(err => console.error('[cron] Learn nudge scan error:', err.message));
 }, { timezone: 'Asia/Kolkata' });
 
 // On startup: if today is a weekday and it's after 4:15 PM IST, check whether
