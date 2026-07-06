@@ -10,6 +10,45 @@ import styles from './Learn.module.css';
 const DETECTION_OPTIONS = ['Yes', 'No', 'Weak'];
 const CONFIDENCE_OPTIONS = ['LOW', 'MEDIUM', 'HIGH'];
 
+const BIAS_GROUP_LABELS = { bullish: 'Bullish', bearish: 'Bearish', indecision: 'Indecision', context_dependent: 'Context-dependent' };
+const STRUCTURE_GROUP_LABELS = { reversal: 'Reversal patterns', continuation: 'Continuation patterns' };
+const BIAS_GROUP_ORDER = ['bullish', 'bearish', 'indecision', 'context_dependent'];
+const STRUCTURE_GROUP_ORDER = ['reversal', 'continuation'];
+
+// Chart patterns (H&S, triangles, etc.) group by reversal/continuation —
+// the standard convention for multi-candle structures. Everything else
+// (candlesticks, volume, S/R, trend) groups by bias, since that's the
+// axis that actually matters when calling a single-candle signal.
+function groupPatternOptions(patterns) {
+  const chartPatterns = patterns.filter(p => p.category === 'chart_pattern');
+  const rest = patterns.filter(p => p.category !== 'chart_pattern');
+
+  const groups = [];
+  for (const key of BIAS_GROUP_ORDER) {
+    const options = rest.filter(p => p.bias_category === key);
+    if (options.length) groups.push({ label: BIAS_GROUP_LABELS[key], options });
+  }
+  for (const key of STRUCTURE_GROUP_ORDER) {
+    const options = chartPatterns.filter(p => p.structure_type === key);
+    if (options.length) groups.push({ label: STRUCTURE_GROUP_LABELS[key], options });
+  }
+  return groups;
+}
+
+function PatternSelect({ patterns, value, onChange, placeholder }) {
+  const groups = groupPatternOptions(patterns);
+  return (
+    <select value={value} onChange={onChange}>
+      <option value="">{placeholder}</option>
+      {groups.map(g => (
+        <optgroup key={g.label} label={g.label}>
+          {g.options.map(p => <option key={p.slug} value={p.slug}>{p.display_name}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
+
 export default function Learn() {
   const [view, setView] = useState('home'); // home | session | results
   const [nudges, setNudges] = useState([]);
@@ -153,13 +192,12 @@ function LearnHome({ nudges, intake, patterns, onDismissNudge, onStartNudge, onS
       <section className={`card ${styles.intakeCard}`}>
         <div className="section-label">Learn a topic</div>
         <p className={styles.startDesc}>What did you read or watch today? Pick it and the session starts right away.</p>
-        <select
+        <PatternSelect
+          patterns={patterns}
           value=""
+          placeholder="Select a pattern…"
           onChange={e => { if (e.target.value) onStartIntake(e.target.value); }}
-        >
-          <option value="">Select a pattern…</option>
-          {patterns.map(p => <option key={p.slug} value={p.slug}>{p.display_name}</option>)}
-        </select>
+        />
         {intake.length > 0 && (
           <div className={styles.intakeQueue}>
             {intake.map(row => (
@@ -249,10 +287,12 @@ function ChartCall({ chart, patterns, onAnswered, onNext, isLast }) {
 
         <div className={styles.callGroup}>
           <span className={styles.callLabel}>Pattern type</span>
-          <select value={patternSlug} onChange={e => setPatternSlug(e.target.value)}>
-            <option value="">Not sure / n-a</option>
-            {patterns.map(p => <option key={p.slug} value={p.slug}>{p.display_name}</option>)}
-          </select>
+          <PatternSelect
+            patterns={patterns}
+            value={patternSlug}
+            placeholder="Not sure / n-a"
+            onChange={e => setPatternSlug(e.target.value)}
+          />
         </div>
 
         <div className={styles.callGroup}>

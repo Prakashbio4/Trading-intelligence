@@ -24,6 +24,10 @@ const TREND_DRIFT = {
 };
 
 function pickTrend(requiresTrend) {
+  // Continuation chart patterns (triangle, flag/pennant, wedge, rectangle)
+  // only make sense inside an existing trend, but can continue either
+  // direction — so pick uptrend or downtrend, never sideways.
+  if (requiresTrend === 'trending') return Math.random() > 0.5 ? 'uptrend' : 'downtrend';
   if (requiresTrend) return requiresTrend;
   return ['uptrend', 'downtrend', 'sideways'][Math.floor(Math.random() * 3)];
 }
@@ -54,7 +58,7 @@ function generateChart(config) {
   if (patternPresent) {
     const result = meta.fn({
       basePrice: priceAtPattern, avgVolume, clarity: config.clarity,
-      volumeCharacter: config.volumeCharacter, dates: patternDates,
+      volumeCharacter: config.volumeCharacter, dates: patternDates, trendContext,
     });
     patternCandles = result.candles;
     bias = result.bias;

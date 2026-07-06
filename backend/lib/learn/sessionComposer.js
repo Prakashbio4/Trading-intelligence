@@ -8,8 +8,12 @@
 const { PATTERN_META } = require('./generators');
 const { generateChart } = require('./composer');
 
-const CANDLESTICK_SLUGS = Object.keys(PATTERN_META).filter(s => PATTERN_META[s].category === 'candlestick');
-const OTHER_SLUGS = Object.keys(PATTERN_META).filter(s => PATTERN_META[s].category !== 'candlestick');
+// "Primary" signals are things a trader would actually call a setup on —
+// candlestick patterns and multi-candle chart patterns (H&S, triangles,
+// etc). Volume/S-R/trend-structure patterns are context signals, not
+// standalone setups, so they only fill the one wildcard slot.
+const PRIMARY_SLUGS = Object.keys(PATTERN_META).filter(s => ['candlestick', 'chart_pattern'].includes(PATTERN_META[s].category));
+const OTHER_SLUGS = Object.keys(PATTERN_META).filter(s => !['candlestick', 'chart_pattern'].includes(PATTERN_META[s].category));
 
 function shuffle(arr) {
   const a = [...arr];
@@ -92,14 +96,15 @@ function buildSpec(chartType, slugPool, focusPatterns, usedCounts) {
 function composeSession({ focusPatterns = [] } = {}) {
   const slotTypes = shuffle(['clean', 'clean', 'clean', 'ambiguous', 'ambiguous', 'ambiguous', 'multi_concept', 'multi_concept', 'no_setup', 'no_setup']);
 
-  // 7 of the 8 pattern-bearing slots use a candlestick pattern as the primary
-  // signal; 1 wildcard slot draws from volume/S-R/trend patterns for variety.
+  // 7 of the 8 pattern-bearing slots use a primary setup (candlestick or
+  // chart pattern); 1 wildcard slot draws from volume/S-R/trend context
+  // patterns for variety.
   const patternSlotIndexes = slotTypes.map((t, i) => (t !== 'no_setup' ? i : null)).filter(i => i !== null);
   const wildcardIndex = patternSlotIndexes[Math.floor(Math.random() * patternSlotIndexes.length)];
 
   const usedCounts = new Map();
   const charts = slotTypes.map((chartType, i) => {
-    const pool = i === wildcardIndex ? OTHER_SLUGS : CANDLESTICK_SLUGS;
+    const pool = i === wildcardIndex ? OTHER_SLUGS : PRIMARY_SLUGS;
     const spec = buildSpec(chartType, pool, focusPatterns, usedCounts);
     const chart = generateChart(spec);
     return { ...chart, chartIndex: i };

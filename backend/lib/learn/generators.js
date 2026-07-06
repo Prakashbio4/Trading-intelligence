@@ -429,10 +429,13 @@ function threeBlackCrows({ basePrice, avgVolume, clarity, volumeCharacter, dates
   return { candles, bias: 'bearish' };
 }
 
-function abandonedBaby({ basePrice, avgVolume, clarity, volumeCharacter, dates }) {
+// Abandoned Baby is really two distinct patterns sharing a shape — a
+// gap-down doji (bullish reversal) or a gap-up doji (bearish reversal).
+// Split into two fixed-direction slugs so the pattern library and the
+// classification below don't have to guess which one a chart shows.
+function abandonedBabyShape({ basePrice, avgVolume, clarity, volumeCharacter, dates, bullish }) {
   const f = factorOf(clarity);
   const range = typicalRange(basePrice);
-  const bullish = Math.random() > 0.5;
   const c1 = shapeCandle({
     date: dates[0], refPrice: basePrice, range,
     bodyRatio: 0.75, wickUpRatio: 0.08, wickDownRatio: 0.08,
@@ -454,6 +457,9 @@ function abandonedBaby({ basePrice, avgVolume, clarity, volumeCharacter, dates }
   });
   return { candles: [c1, c2, c3], bias: bullish ? 'bullish' : 'bearish' };
 }
+
+function abandonedBabyBullish(params) { return abandonedBabyShape({ ...params, bullish: true }); }
+function abandonedBabyBearish(params) { return abandonedBabyShape({ ...params, bullish: false }); }
 
 // ── Five-candle patterns ─────────────────────────────────────────────────────
 
@@ -600,6 +606,397 @@ function higherHighLow({ basePrice, avgVolume, clarity, volumeCharacter, dates }
   return { candles, bias: 'bullish' };
 }
 
+// ── Chart patterns (multi-candle swing structures) ──────────────────────────
+// Reversal patterns have a fixed directional bias. Continuation patterns
+// (triangle, flag/pennant, wedge, rectangle) don't — they only make sense
+// inside an existing trend, so the composer passes `trendContext` and the
+// breakout direction follows whichever trend the chart was placed in.
+
+function headShoulders({ basePrice, avgVolume, clarity, volumeCharacter, dates }) {
+  const f = factorOf(clarity);
+  const range = typicalRange(basePrice);
+  const neckline = basePrice;
+  const shoulderH = range * lerp(2.2, 1.3, f);
+  const headH = shoulderH * lerp(1.4, 1.1, f);
+  const asymmetry = lerp(0.05, 0.3, 1 - f);
+
+  const candles = [];
+  const rally = (height, i) => candles.push(shapeCandle({
+    date: dates[i], refPrice: neckline, range: height, bodyRatio: 0.7, wickUpRatio: 0.12, wickDownRatio: 0.08,
+    bullish: true, volume: fillerVolume(avgVolume), zone: 'pattern',
+  }));
+  const pullback = (height, i) => candles.push(shapeCandle({
+    date: dates[i], refPrice: neckline, range: height, bodyRatio: 0.7, wickUpRatio: 0.08, wickDownRatio: 0.12,
+    bullish: false, volume: fillerVolume(avgVolume), zone: 'pattern',
+  }));
+
+  rally(shoulderH, 0);
+  pullback(shoulderH, 1);
+  rally(headH, 2);
+  pullback(headH, 3);
+  const rightShoulderH = shoulderH * (1 + randRange(-asymmetry, asymmetry));
+  rally(rightShoulderH, 4);
+  pullback(rightShoulderH * 0.85, 5);
+
+  const breakdownDepth = range * lerp(1.6, 0.7, f);
+  candles.push(shapeCandle({
+    date: dates[6], refPrice: neckline - breakdownDepth, range: breakdownDepth,
+    bodyRatio: 0.85, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish: false,
+    volume: volumeForCharacter(volumeCharacter, avgVolume), zone: 'pattern',
+  }));
+
+  return { candles, bias: 'bearish', srLevel: { price: neckline, type: 'support' } };
+}
+
+function inverseHeadShoulders({ basePrice, avgVolume, clarity, volumeCharacter, dates }) {
+  const f = factorOf(clarity);
+  const range = typicalRange(basePrice);
+  const neckline = basePrice;
+  const shoulderD = range * lerp(2.2, 1.3, f);
+  const headD = shoulderD * lerp(1.4, 1.1, f);
+  const asymmetry = lerp(0.05, 0.3, 1 - f);
+
+  const candles = [];
+  const dip = (depth, i) => candles.push(shapeCandle({
+    date: dates[i], refPrice: neckline - depth, range: depth, bodyRatio: 0.7, wickUpRatio: 0.08, wickDownRatio: 0.12,
+    bullish: false, volume: fillerVolume(avgVolume), zone: 'pattern',
+  }));
+  const recover = (depth, i) => candles.push(shapeCandle({
+    date: dates[i], refPrice: neckline - depth, range: depth, bodyRatio: 0.7, wickUpRatio: 0.12, wickDownRatio: 0.08,
+    bullish: true, volume: fillerVolume(avgVolume), zone: 'pattern',
+  }));
+
+  dip(shoulderD, 0);
+  recover(shoulderD, 1);
+  dip(headD, 2);
+  recover(headD, 3);
+  const rightShoulderD = shoulderD * (1 + randRange(-asymmetry, asymmetry));
+  dip(rightShoulderD, 4);
+  recover(rightShoulderD * 0.85, 5);
+
+  const breakoutHeight = range * lerp(1.6, 0.7, f);
+  candles.push(shapeCandle({
+    date: dates[6], refPrice: neckline, range: breakoutHeight,
+    bodyRatio: 0.85, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish: true,
+    volume: volumeForCharacter(volumeCharacter, avgVolume), zone: 'pattern',
+  }));
+
+  return { candles, bias: 'bullish', srLevel: { price: neckline, type: 'resistance' } };
+}
+
+function doubleTop({ basePrice, avgVolume, clarity, volumeCharacter, dates }) {
+  const f = factorOf(clarity);
+  const range = typicalRange(basePrice);
+  const neckline = basePrice;
+  const peakH = range * lerp(2.4, 1.4, f);
+  const asymmetry = lerp(0.05, 0.3, 1 - f);
+
+  const candles = [];
+  const rally = (height, i) => candles.push(shapeCandle({
+    date: dates[i], refPrice: neckline, range: height, bodyRatio: 0.7, wickUpRatio: 0.12, wickDownRatio: 0.08,
+    bullish: true, volume: fillerVolume(avgVolume), zone: 'pattern',
+  }));
+  const pullback = (height, i) => candles.push(shapeCandle({
+    date: dates[i], refPrice: neckline, range: height, bodyRatio: 0.7, wickUpRatio: 0.08, wickDownRatio: 0.12,
+    bullish: false, volume: fillerVolume(avgVolume), zone: 'pattern',
+  }));
+
+  rally(peakH, 0);
+  pullback(peakH, 1);
+  rally(peakH * (1 + randRange(-asymmetry, asymmetry)), 2);
+  pullback(peakH * 0.9, 3);
+
+  const breakdownDepth = range * lerp(1.6, 0.7, f);
+  candles.push(shapeCandle({
+    date: dates[4], refPrice: neckline - breakdownDepth, range: breakdownDepth,
+    bodyRatio: 0.85, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish: false,
+    volume: volumeForCharacter(volumeCharacter, avgVolume), zone: 'pattern',
+  }));
+
+  return { candles, bias: 'bearish', srLevel: { price: neckline, type: 'support' } };
+}
+
+function doubleBottom({ basePrice, avgVolume, clarity, volumeCharacter, dates }) {
+  const f = factorOf(clarity);
+  const range = typicalRange(basePrice);
+  const neckline = basePrice;
+  const troughD = range * lerp(2.4, 1.4, f);
+  const asymmetry = lerp(0.05, 0.3, 1 - f);
+
+  const candles = [];
+  const dip = (depth, i) => candles.push(shapeCandle({
+    date: dates[i], refPrice: neckline - depth, range: depth, bodyRatio: 0.7, wickUpRatio: 0.08, wickDownRatio: 0.12,
+    bullish: false, volume: fillerVolume(avgVolume), zone: 'pattern',
+  }));
+  const recover = (depth, i) => candles.push(shapeCandle({
+    date: dates[i], refPrice: neckline - depth, range: depth, bodyRatio: 0.7, wickUpRatio: 0.12, wickDownRatio: 0.08,
+    bullish: true, volume: fillerVolume(avgVolume), zone: 'pattern',
+  }));
+
+  dip(troughD, 0);
+  recover(troughD, 1);
+  dip(troughD * (1 + randRange(-asymmetry, asymmetry)), 2);
+  recover(troughD * 0.9, 3);
+
+  const breakoutHeight = range * lerp(1.6, 0.7, f);
+  candles.push(shapeCandle({
+    date: dates[4], refPrice: neckline, range: breakoutHeight,
+    bodyRatio: 0.85, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish: true,
+    volume: volumeForCharacter(volumeCharacter, avgVolume), zone: 'pattern',
+  }));
+
+  return { candles, bias: 'bullish', srLevel: { price: neckline, type: 'resistance' } };
+}
+
+function tripleTop({ basePrice, avgVolume, clarity, volumeCharacter, dates }) {
+  const f = factorOf(clarity);
+  const range = typicalRange(basePrice);
+  const neckline = basePrice;
+  const peakH = range * lerp(2.2, 1.3, f);
+  const asymmetry = lerp(0.06, 0.28, 1 - f);
+
+  const candles = [];
+  const rally = (height, i) => candles.push(shapeCandle({
+    date: dates[i], refPrice: neckline, range: height, bodyRatio: 0.65, wickUpRatio: 0.12, wickDownRatio: 0.08,
+    bullish: true, volume: fillerVolume(avgVolume), zone: 'pattern',
+  }));
+  const pullback = (height, i) => candles.push(shapeCandle({
+    date: dates[i], refPrice: neckline, range: height, bodyRatio: 0.65, wickUpRatio: 0.08, wickDownRatio: 0.12,
+    bullish: false, volume: fillerVolume(avgVolume), zone: 'pattern',
+  }));
+
+  rally(peakH, 0);
+  pullback(peakH, 1);
+  rally(peakH * (1 + randRange(-asymmetry, asymmetry)), 2);
+  pullback(peakH * 0.85, 3);
+  rally(peakH * (1 + randRange(-asymmetry, asymmetry)), 4);
+  pullback(peakH * 0.85, 5);
+
+  const breakdownDepth = range * lerp(1.6, 0.7, f);
+  candles.push(shapeCandle({
+    date: dates[6], refPrice: neckline - breakdownDepth, range: breakdownDepth,
+    bodyRatio: 0.85, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish: false,
+    volume: volumeForCharacter(volumeCharacter, avgVolume), zone: 'pattern',
+  }));
+
+  return { candles, bias: 'bearish', srLevel: { price: neckline, type: 'support' } };
+}
+
+function tripleBottom({ basePrice, avgVolume, clarity, volumeCharacter, dates }) {
+  const f = factorOf(clarity);
+  const range = typicalRange(basePrice);
+  const neckline = basePrice;
+  const troughD = range * lerp(2.2, 1.3, f);
+  const asymmetry = lerp(0.06, 0.28, 1 - f);
+
+  const candles = [];
+  const dip = (depth, i) => candles.push(shapeCandle({
+    date: dates[i], refPrice: neckline - depth, range: depth, bodyRatio: 0.65, wickUpRatio: 0.08, wickDownRatio: 0.12,
+    bullish: false, volume: fillerVolume(avgVolume), zone: 'pattern',
+  }));
+  const recover = (depth, i) => candles.push(shapeCandle({
+    date: dates[i], refPrice: neckline - depth, range: depth, bodyRatio: 0.65, wickUpRatio: 0.12, wickDownRatio: 0.08,
+    bullish: true, volume: fillerVolume(avgVolume), zone: 'pattern',
+  }));
+
+  dip(troughD, 0);
+  recover(troughD, 1);
+  dip(troughD * (1 + randRange(-asymmetry, asymmetry)), 2);
+  recover(troughD * 0.85, 3);
+  dip(troughD * (1 + randRange(-asymmetry, asymmetry)), 4);
+  recover(troughD * 0.85, 5);
+
+  const breakoutHeight = range * lerp(1.6, 0.7, f);
+  candles.push(shapeCandle({
+    date: dates[6], refPrice: neckline, range: breakoutHeight,
+    bodyRatio: 0.85, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish: true,
+    volume: volumeForCharacter(volumeCharacter, avgVolume), zone: 'pattern',
+  }));
+
+  return { candles, bias: 'bullish', srLevel: { price: neckline, type: 'resistance' } };
+}
+
+function saucerBottom({ basePrice, avgVolume, clarity, volumeCharacter, dates }) {
+  const f = factorOf(clarity);
+  const range = typicalRange(basePrice);
+  const roundness = lerp(0.5, 0.85, f); // gradual/smooth curve when textbook
+  const totalDepth = range * lerp(2.0, 1.1, f);
+
+  const candles = [];
+  let price = basePrice;
+  const legDepths = [0.35, 0.25, 0.1, 0.1, 0.25].map(p => totalDepth * p * roundness);
+  const directions = [false, false, false, true, true]; // down, down, flat bottom, up, up
+  for (let i = 0; i < 5; i++) {
+    const c = shapeCandle({
+      date: dates[i], refPrice: directions[i] ? price : price - legDepths[i], range: Math.max(legDepths[i], range * 0.2),
+      bodyRatio: 0.5, wickUpRatio: 0.2, wickDownRatio: 0.2, bullish: directions[i],
+      volume: fillerVolume(avgVolume) * (i === 2 ? 0.6 : 1), zone: 'pattern', // volume dries up at the base
+    });
+    candles.push(c);
+    price = c.close;
+  }
+  const breakoutHeight = range * lerp(1.5, 0.7, f);
+  candles.push(shapeCandle({
+    date: dates[5], refPrice: price, range: breakoutHeight,
+    bodyRatio: 0.8, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish: true,
+    volume: volumeForCharacter(volumeCharacter, avgVolume), zone: 'pattern',
+  }));
+
+  return { candles, bias: 'bullish' };
+}
+
+function spikeTop({ basePrice, avgVolume, clarity, volumeCharacter, dates }) {
+  const f = factorOf(clarity);
+  const range = typicalRange(basePrice);
+  const spikeHeight = range * lerp(2.6, 1.5, f);
+
+  const c0 = shapeCandle({
+    date: dates[0], refPrice: basePrice, range: spikeHeight * 0.5,
+    bodyRatio: 0.85, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish: true,
+    volume: fillerVolume(avgVolume) * 1.3, zone: 'pattern',
+  });
+  const c1 = shapeCandle({
+    date: dates[1], refPrice: c0.close, range: spikeHeight * 0.5,
+    bodyRatio: 0.85, wickUpRatio: 0.1, wickDownRatio: 0.05, bullish: true,
+    volume: fillerVolume(avgVolume) * 1.6, zone: 'pattern',
+  });
+  const c2 = shapeCandle({
+    date: dates[2], refPrice: c1.close - spikeHeight * 0.6, range: spikeHeight * 0.6,
+    bodyRatio: 0.85, wickUpRatio: 0.05, wickDownRatio: 0.1, bullish: false,
+    volume: fillerVolume(avgVolume) * 1.5, zone: 'pattern',
+  });
+  const c3 = shapeCandle({
+    date: dates[3], refPrice: c2.close - spikeHeight * 0.5, range: spikeHeight * 0.5,
+    bodyRatio: 0.85, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish: false,
+    volume: volumeForCharacter(volumeCharacter, avgVolume), zone: 'pattern',
+  });
+
+  return { candles: [c0, c1, c2, c3], bias: 'bearish' };
+}
+
+function triangle({ basePrice, avgVolume, clarity, volumeCharacter, dates, trendContext }) {
+  const f = factorOf(clarity);
+  const range = typicalRange(basePrice);
+  const bullish = trendContext !== 'downtrend';
+  const contraction = lerp(0.85, 0.5, f); // tighter contraction when textbook
+
+  const candles = [];
+  let price = basePrice;
+  let swingRange = range * 1.4;
+  for (let i = 0; i < 5; i++) {
+    const up = i % 2 === 0;
+    const c = shapeCandle({
+      date: dates[i], refPrice: up ? price : price - swingRange, range: swingRange,
+      bodyRatio: 0.5, wickUpRatio: 0.15, wickDownRatio: 0.15, bullish: up,
+      volume: fillerVolume(avgVolume) * lerp(1, 0.5, i / 5), zone: 'pattern', // volume dries up as it tightens
+    });
+    candles.push(c);
+    price = c.close;
+    swingRange *= contraction;
+  }
+  const breakoutRange = range * lerp(1.6, 0.8, f);
+  candles.push(shapeCandle({
+    date: dates[5], refPrice: bullish ? price : price - breakoutRange, range: breakoutRange,
+    bodyRatio: 0.8, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish,
+    volume: volumeForCharacter(volumeCharacter, avgVolume), zone: 'pattern',
+  }));
+
+  return { candles, bias: bullish ? 'bullish' : 'bearish' };
+}
+
+function flagPennant({ basePrice, avgVolume, clarity, volumeCharacter, dates, trendContext }) {
+  const f = factorOf(clarity);
+  const range = typicalRange(basePrice);
+  const bullish = trendContext !== 'downtrend';
+  const poleHeight = range * lerp(2.4, 1.4, f);
+
+  const pole = shapeCandle({
+    date: dates[0], refPrice: bullish ? basePrice : basePrice - poleHeight, range: poleHeight,
+    bodyRatio: 0.85, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish,
+    volume: fillerVolume(avgVolume) * 1.6, zone: 'pattern',
+  });
+  const candles = [pole];
+  let price = pole.close;
+  const consolidationRange = range * lerp(0.4, 0.8, 1 - f); // tighter = more textbook flag
+  for (let i = 1; i <= 3; i++) {
+    const c = shapeCandle({
+      date: dates[i], refPrice: bullish ? price - consolidationRange : price, range: consolidationRange,
+      bodyRatio: 0.45, wickUpRatio: 0.2, wickDownRatio: 0.2, bullish: !bullish, // drifts against the pole
+      volume: fillerVolume(avgVolume) * 0.5, zone: 'pattern',
+    });
+    candles.push(c);
+    price = c.close;
+  }
+  const breakoutRange = range * lerp(1.5, 0.8, f);
+  candles.push(shapeCandle({
+    date: dates[4], refPrice: bullish ? price : price - breakoutRange, range: breakoutRange,
+    bodyRatio: 0.8, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish,
+    volume: volumeForCharacter(volumeCharacter, avgVolume), zone: 'pattern',
+  }));
+
+  return { candles, bias: bullish ? 'bullish' : 'bearish' };
+}
+
+function wedge({ basePrice, avgVolume, clarity, volumeCharacter, dates, trendContext }) {
+  const f = factorOf(clarity);
+  const range = typicalRange(basePrice);
+  const bullish = trendContext !== 'downtrend';
+  const contraction = lerp(0.8, 0.55, f);
+  const drift = range * (bullish ? -1 : 1) * 0.3; // wedge slopes counter to the eventual breakout
+
+  const candles = [];
+  let price = basePrice;
+  let swingRange = range * 1.5;
+  for (let i = 0; i < 5; i++) {
+    const up = i % 2 === 0;
+    const anchor = price + drift * (i / 5);
+    const c = shapeCandle({
+      date: dates[i], refPrice: up ? anchor : anchor - swingRange, range: swingRange,
+      bodyRatio: 0.5, wickUpRatio: 0.15, wickDownRatio: 0.15, bullish: up,
+      volume: fillerVolume(avgVolume) * lerp(1, 0.5, i / 5), zone: 'pattern',
+    });
+    candles.push(c);
+    price = c.close;
+    swingRange *= contraction;
+  }
+  const breakoutRange = range * lerp(1.6, 0.8, f);
+  candles.push(shapeCandle({
+    date: dates[5], refPrice: bullish ? price : price - breakoutRange, range: breakoutRange,
+    bodyRatio: 0.8, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish,
+    volume: volumeForCharacter(volumeCharacter, avgVolume), zone: 'pattern',
+  }));
+
+  return { candles, bias: bullish ? 'bullish' : 'bearish' };
+}
+
+function rectangle({ basePrice, avgVolume, clarity, volumeCharacter, dates, trendContext }) {
+  const f = factorOf(clarity);
+  const range = typicalRange(basePrice);
+  const bullish = trendContext !== 'downtrend';
+  const channelHeight = range * lerp(1.6, 2.4, 1 - f); // tighter/cleaner channel when textbook
+  const floor = basePrice - channelHeight * 0.85;
+  const ceiling = basePrice - channelHeight * 0.15;
+
+  const candles = [];
+  for (let i = 0; i < 5; i++) {
+    const up = i % 2 === 0;
+    const c = shapeCandle({
+      date: dates[i], refPrice: up ? ceiling - channelHeight * 0.7 : floor, range: channelHeight * 0.7,
+      bodyRatio: 0.5, wickUpRatio: 0.15, wickDownRatio: 0.15, bullish: up,
+      volume: fillerVolume(avgVolume), zone: 'pattern',
+    });
+    candles.push(c);
+  }
+  const breakoutRange = range * lerp(1.6, 0.8, f);
+  candles.push(shapeCandle({
+    date: dates[5], refPrice: bullish ? ceiling : floor - breakoutRange, range: breakoutRange,
+    bodyRatio: 0.8, wickUpRatio: 0.08, wickDownRatio: 0.08, bullish,
+    volume: volumeForCharacter(volumeCharacter, avgVolume), zone: 'pattern',
+  }));
+
+  return { candles, bias: bullish ? 'bullish' : 'bearish' };
+}
+
 // ── Registry ─────────────────────────────────────────────────────────────────
 
 const PATTERN_META = {
@@ -627,7 +1024,8 @@ const PATTERN_META = {
   tweezer_bottom:       { candleCount: 2, fn: tweezerBottom,       requiresTrend: 'downtrend', category: 'candlestick' },
   inside_bar:           { candleCount: 2, fn: insideBar,           requiresTrend: null,         category: 'candlestick' },
   outside_bar:          { candleCount: 2, fn: outsideBar,          requiresTrend: null,         category: 'candlestick' },
-  abandoned_baby:       { candleCount: 3, fn: abandonedBaby,       requiresTrend: null,         category: 'candlestick' },
+  abandoned_baby_bullish: { candleCount: 3, fn: abandonedBabyBullish, requiresTrend: null,       category: 'candlestick' },
+  abandoned_baby_bearish: { candleCount: 3, fn: abandonedBabyBearish, requiresTrend: null,       category: 'candlestick' },
   rising_three:         { candleCount: 5, fn: risingThree,         requiresTrend: 'uptrend',   category: 'candlestick' },
   falling_three:        { candleCount: 5, fn: fallingThree,        requiresTrend: 'downtrend', category: 'candlestick' },
   volume_climax:        { candleCount: 1, fn: volumeClimax,        requiresTrend: null,         category: 'volume' },
@@ -636,6 +1034,20 @@ const PATTERN_META = {
   resistance_level:     { candleCount: 2, fn: resistanceLevel,     requiresTrend: 'uptrend',   category: 'sr' },
   trendline_support:    { candleCount: 3, fn: trendlineSupport,    requiresTrend: 'uptrend',   category: 'trend' },
   higher_high_low:      { candleCount: 4, fn: higherHighLow,       requiresTrend: 'uptrend',   category: 'trend' },
+
+  // Chart patterns — multi-candle swing structures, reversal or continuation.
+  head_shoulders:         { candleCount: 7, fn: headShoulders,         requiresTrend: 'uptrend',   category: 'chart_pattern' },
+  inverse_head_shoulders: { candleCount: 7, fn: inverseHeadShoulders,  requiresTrend: 'downtrend', category: 'chart_pattern' },
+  double_top:             { candleCount: 5, fn: doubleTop,             requiresTrend: 'uptrend',   category: 'chart_pattern' },
+  double_bottom:          { candleCount: 5, fn: doubleBottom,          requiresTrend: 'downtrend', category: 'chart_pattern' },
+  triple_top:             { candleCount: 7, fn: tripleTop,             requiresTrend: 'uptrend',   category: 'chart_pattern' },
+  triple_bottom:          { candleCount: 7, fn: tripleBottom,          requiresTrend: 'downtrend', category: 'chart_pattern' },
+  saucer_bottom:          { candleCount: 6, fn: saucerBottom,          requiresTrend: 'downtrend', category: 'chart_pattern' },
+  spike_top:              { candleCount: 4, fn: spikeTop,              requiresTrend: 'uptrend',   category: 'chart_pattern' },
+  triangle:               { candleCount: 6, fn: triangle,              requiresTrend: 'trending',  category: 'chart_pattern' },
+  flag_pennant:           { candleCount: 5, fn: flagPennant,           requiresTrend: 'trending',  category: 'chart_pattern' },
+  wedge:                  { candleCount: 6, fn: wedge,                 requiresTrend: 'trending',  category: 'chart_pattern' },
+  rectangle:              { candleCount: 6, fn: rectangle,             requiresTrend: 'trending',  category: 'chart_pattern' },
 };
 
 module.exports = { PATTERN_META };
