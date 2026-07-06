@@ -29,7 +29,6 @@
 .startCard, .intakeCard { display: flex; flex-direction: column; gap: var(--sp-3); }
 .startDesc { color: var(--muted); font-size: 13px; }
 
-.intakeForm { display: flex; flex-direction: column; gap: var(--sp-2); }
 .intakeQueue { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
 
 .progress { color: var(--muted); font-family: var(--font-mono); font-size: 12px; margin-bottom: var(--sp-3); }

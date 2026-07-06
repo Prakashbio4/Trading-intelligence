@@ -94,10 +94,9 @@ export default function Learn() {
           onDismissNudge={onDismissNudge}
           onStartNudge={nudge => begin({ sessionType: 'adaptive', triggeredBy: 'nudge', nudgeId: nudge.id, focusPatterns: nudge.recommended_focus })}
           onStartAdaptive={() => begin({ sessionType: 'adaptive', triggeredBy: 'manual' })}
-          onSubmitIntake={async (patternSlug, note) => {
-            await submitLearnIntake(patternSlug, note);
-            const i = await getLearnIntake();
-            setIntake(i.filter(row => !row.first_drilled_at));
+          onStartIntake={patternSlug => {
+            submitLearnIntake(patternSlug, '').catch(() => {});
+            begin({ sessionType: 'manual', triggeredBy: 'intake', focusPatterns: [patternSlug] });
           }}
         />
       )}
@@ -122,24 +121,7 @@ export default function Learn() {
 
 // ── Home ─────────────────────────────────────────────────────────────────────
 
-function LearnHome({ nudges, intake, patterns, onDismissNudge, onStartNudge, onStartAdaptive, onSubmitIntake }) {
-  const [patternSlug, setPatternSlug] = useState('');
-  const [note, setNote] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleIntakeSubmit(e) {
-    e.preventDefault();
-    if (!patternSlug) return;
-    setSubmitting(true);
-    try {
-      await onSubmitIntake(patternSlug, note);
-      setPatternSlug('');
-      setNote('');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
+function LearnHome({ nudges, intake, patterns, onDismissNudge, onStartNudge, onStartAdaptive, onStartIntake }) {
   return (
     <>
       <div className={styles.header}>
@@ -169,16 +151,15 @@ function LearnHome({ nudges, intake, patterns, onDismissNudge, onStartNudge, onS
       </section>
 
       <section className={`card ${styles.intakeCard}`}>
-        <div className="section-label">Concept intake</div>
-        <p className={styles.startDesc}>What did you read or watch today? Queue it for a drill before you meet it live.</p>
-        <form onSubmit={handleIntakeSubmit} className={styles.intakeForm}>
-          <select value={patternSlug} onChange={e => setPatternSlug(e.target.value)}>
-            <option value="">Select a pattern…</option>
-            {patterns.map(p => <option key={p.slug} value={p.slug}>{p.display_name}</option>)}
-          </select>
-          <textarea rows={2} placeholder="Optional — what did you read or watch?" value={note} onChange={e => setNote(e.target.value)} />
-          <button className="btn btn-ghost" type="submit" disabled={!patternSlug || submitting}>Queue it</button>
-        </form>
+        <div className="section-label">Learn a topic</div>
+        <p className={styles.startDesc}>What did you read or watch today? Pick it and the session starts right away.</p>
+        <select
+          value=""
+          onChange={e => { if (e.target.value) onStartIntake(e.target.value); }}
+        >
+          <option value="">Select a pattern…</option>
+          {patterns.map(p => <option key={p.slug} value={p.slug}>{p.display_name}</option>)}
+        </select>
         {intake.length > 0 && (
           <div className={styles.intakeQueue}>
             {intake.map(row => (
