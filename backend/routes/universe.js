@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const { processSymbol } = require('../jobs/fetchOhlc');
+const { searchNseSymbols } = require('../lib/growwInstruments');
 const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
@@ -16,6 +17,17 @@ router.get('/', async (_req, res) => {
     .order('symbol');
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
+});
+
+// GET /universe/symbols/search?q= — typeahead against Groww's NSE instrument
+// master, so the "Stock symbol" input can catch typos before they're saved.
+router.get('/symbols/search', async (req, res) => {
+  try {
+    const results = await searchNseSymbols(req.query.q);
+    res.json(results);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
 });
 
 // POST /universe — add a stock. Idempotent: re-adding an existing symbol is

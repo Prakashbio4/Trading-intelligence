@@ -33,34 +33,44 @@ async function loadNseEquityRows() {
   }
 }
 
-// Look up candidate NSE trading symbols for a ticker that Groww rejected as
-// invalid. Matches on the exact groww_symbol first (some rejected symbols
-// are actually the groww_symbol, not the trading_symbol Groww expects for
-// OHLC calls), then falls back to trading symbols that start with the typed
-// string (e.g. "GENUS" -> "GENUSPOWER") and company names containing it.
-//
-// Every result here is a *candidate* for a human to confirm — never applied
-// automatically, since a wrong auto-correction means silently pulling data
-// for the wrong company.
-async function findNseSymbolCandidates(rawSymbol, limit = 3) {
-  const needle = rawSymbol.trim().toUpperCase();
-  if (!needle) return [];
-
-  const rows = await loadNseEquityRows();
-
+// Rank NSE equity rows against a typed string: exact groww_symbol hit first
+// (some rejected symbols are actually the groww_symbol, not the trading_symbol
+// Groww expects for OHLC calls), then trading symbols that start with it
+// (e.g. "GENUS" -> "GENUSPOWER"), then company names containing it.
+function rankMatches(needle, rows, limit) {
   const exactGrowwSymbol = rows.filter(r => (r.groww_symbol || '').toUpperCase() === needle);
   const prefixMatches = rows.filter(r => (r.trading_symbol || '').toUpperCase().startsWith(needle));
   const nameMatches = rows.filter(r => (r.name || '').toUpperCase().includes(needle));
 
   const seen = new Set();
-  const candidates = [];
+  const results = [];
   for (const row of [...exactGrowwSymbol, ...prefixMatches, ...nameMatches]) {
     if (seen.has(row.trading_symbol)) continue;
     seen.add(row.trading_symbol);
-    candidates.push({ tradingSymbol: row.trading_symbol, name: row.name });
-    if (candidates.length >= limit) break;
+    results.push({ tradingSymbol: row.trading_symbol, name: row.name });
+    if (results.length >= limit) break;
   }
-  return candidates;
+  return results;
 }
 
-module.exports = { findNseSymbolCandidates };
+// Look up candidate NSE trading symbols for a ticker that Groww rejected as
+// invalid (GA001). Every result here is a *candidate* for a human to confirm
+// — never applied automatically, since a wrong auto-correction means silently
+// pulling data for the wrong company.
+async function findNseSymbolCandidates(rawSymbol, limit = 3) {
+  const needle = rawSymbol.trim().toUpperCase();
+  if (!needle) return [];
+  const rows = await loadNseEquityRows();
+  return rankMatches(needle, rows, limit);
+}
+
+// Typeahead search for the "Stock symbol" input — same ranking, more results,
+// and a minimum query length so a single keystroke doesn't dump the whole list.
+async function searchNseSymbols(query, limit = 8) {
+  const needle = (query || '').trim().toUpperCase();
+  if (needle.length < 2) return [];
+  const rows = await loadNseEquityRows();
+  return rankMatches(needle, rows, limit);
+}
+
+module.exports = { findNseSymbolCandidates, searchNseSymbols };

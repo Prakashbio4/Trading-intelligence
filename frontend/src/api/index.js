@@ -129,6 +129,13 @@ export async function sendChatMessage(id, message) {
   return handleResponse(res);
 }
 
+export async function searchSymbols(query) {
+  const res = await fetch(`${BASE}/universe/symbols/search?q=${encodeURIComponent(query)}`, {
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+}
+
 export async function getInsightsContext() {
   const res = await fetch(`${BASE}/journal/insights-context`, { headers: authHeaders() });
   return handleResponse(res);

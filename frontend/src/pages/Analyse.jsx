@@ -3,6 +3,7 @@ import UploadZone from '../components/UploadZone.jsx';
 import ChatPanel from '../components/ChatPanel.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import { SelectField, NumberField, TextField, TextArea } from '../components/Field.jsx';
+import { SymbolField } from '../components/SymbolField.jsx';
 import { analyzeUnified, saveSession } from '../api/index.js';
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -300,8 +301,8 @@ export default function Analyse() {
         <section className="card">
           <div className="section-label">Context</div>
           <div className={styles.grid3}>
-            <TextField label="Stock symbol" required value={form.ticker}
-              onChange={v => !locked && set('ticker', v.toUpperCase())}
+            <SymbolField label="Stock symbol" required value={form.ticker}
+              onChange={v => !locked && set('ticker', v)}
               placeholder="e.g. DEEPIND" />
             <TextField label="Date" value={form.date}
               onChange={v => !locked && set('date', v)} />
