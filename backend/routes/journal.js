@@ -130,6 +130,16 @@ function fromDb(row) {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
+// POST /journal/populate-outcomes-now — manually trigger the outcome job
+// (reference_close, T+3/10/15 snapshots, Take hit-scan). Normally runs on its
+// own cron at 4:45 PM IST — this lets it be re-run on demand, e.g. right after
+// fixing a symbol so its outcome data doesn't wait for the next cron cycle.
+router.post('/populate-outcomes-now', authMiddleware, async (_req, res) => {
+  const { runPopulateOutcomes } = require('../jobs/populateOutcomes');
+  res.json({ message: 'Outcome population started in background' });
+  runPopulateOutcomes().catch(err => console.error('[journal] Manual outcome population error:', err.message));
+});
+
 // GET /journal
 router.get('/', authMiddleware, async (req, res) => {
   try {
