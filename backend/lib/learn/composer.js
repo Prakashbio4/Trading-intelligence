@@ -1,16 +1,21 @@
 'use strict';
 
 // Composition layer — assembles a full chart record from a config:
-// 15 lead-in candles + pattern candles (or continued noise) + 5 outcome
-// candles. Ground truth (pattern_present, pattern_slug, outcome, etc.) lives
-// only in the object this returns; routes/learn.js is responsible for
-// stripping it before the client has answered.
+// 15 lead-in candles + pattern candles (or continued noise). There is no
+// simulated "outcome" continuation — every candle here is already
+// synthetic, so stitching 5 more fabricated candles on the end and
+// presenting them as "what happened" would be answering a fake question
+// with a fake answer. `outcome_direction` is still recorded as ground
+// truth (a probabilistic label, not a rendered candle) purely as coaching
+// context for the end-of-session AI evaluation and Insights.
+// Ground truth (pattern_present, pattern_slug, outcome, etc.) lives only in
+// the object this returns; routes/learn.js strips it before the client has
+// answered.
 
 const { PATTERN_META } = require('./generators');
-const { randRange, randomWalkSeries, tradingDates, makeCandle } = require('./candleUtils');
+const { randRange, randomWalkSeries, tradingDates } = require('./candleUtils');
 
 const LEAD_IN = 15;
-const OUTCOME = 5;
 
 const TREND_DRIFT = {
   uptrend:   () => randRange(0.15, 0.5),
@@ -33,12 +38,11 @@ function generateChart(config) {
   const basePrice = randRange(80, 600);
   const avgVolume = randRange(200000, 1500000);
   const patternCandleCount = meta ? meta.candleCount : (chartType === 'no_setup' ? Math.floor(randRange(1, 3)) : 2);
-  const totalCandles = LEAD_IN + patternCandleCount + OUTCOME;
+  const totalCandles = LEAD_IN + patternCandleCount;
   const dates = tradingDates(totalCandles);
 
   const leadInDates = dates.slice(0, LEAD_IN);
-  const patternDates = dates.slice(LEAD_IN, LEAD_IN + patternCandleCount);
-  const outcomeDates = dates.slice(LEAD_IN + patternCandleCount);
+  const patternDates = dates.slice(LEAD_IN);
 
   const leadIn = randomWalkSeries({
     count: LEAD_IN, startPrice: basePrice, drift: TREND_DRIFT[trendContext](),
@@ -63,19 +67,12 @@ function generateChart(config) {
     });
     bias = 'neutral';
   }
-  const priceAfterPattern = patternCandles[patternCandles.length - 1].close;
 
-  // Outcome direction: clean charts follow the pattern's bias strongly,
-  // ambiguous charts are weak/mixed, multi-concept depends on context
-  // alignment, no-setup charts are pure noise.
-  const outcomeDrift = computeOutcomeDrift(chartType, bias, priceAfterPattern);
-  const outcome = randomWalkSeries({
-    count: OUTCOME, startPrice: priceAfterPattern, drift: outcomeDrift,
-    vol: priceAfterPattern * 0.012, startVolume: avgVolume, dates: outcomeDates, zone: 'outcome',
-  });
-  const outcomeDirection = classifyOutcome(outcome, priceAfterPattern);
+  // Ground-truth label only (no candles) — clean charts reliably follow the
+  // pattern's bias, ambiguous charts are a coin flip, no-setup is pure noise.
+  const outcomeDirection = sampleOutcomeDirection(chartType, bias);
 
-  const ohlcData = [...leadIn, ...patternCandles, ...outcome];
+  const ohlcData = [...leadIn, ...patternCandles];
   const srLevels = buildSrLevels(config.srProximity, priceAtPattern, generatedSrLevel);
 
   return {
@@ -91,27 +88,21 @@ function generateChart(config) {
     srLevels,
     volumeData: ohlcData.map(c => ({ date: c.date, volume: c.volume })),
     expectedBias: bias,
-    visibleThrough: LEAD_IN + patternCandleCount, // index boundary — candles before this are shown pre-answer
   };
 }
 
-function computeOutcomeDrift(chartType, bias, price) {
-  const magnitude = price * 0.01;
-  const sign = bias === 'bearish' ? -1 : bias === 'bullish' ? 1 : 0;
-  switch (chartType) {
-    case 'clean':         return sign * magnitude * randRange(1.4, 2.2);
-    case 'ambiguous':      return sign * magnitude * randRange(-0.3, 0.5); // weak/mixed follow-through
-    case 'multi_concept':  return sign * magnitude * randRange(0.4, 1.4);
-    default:                return magnitude * randRange(-0.5, 0.5); // no_setup — pure noise
+function sampleOutcomeDirection(chartType, bias) {
+  const r = Math.random();
+  const other = bias === 'bullish' ? 'bearish' : 'bullish';
+  if (bias === 'neutral') {
+    return chartType === 'no_setup' ? ['bullish', 'bearish', 'flat'][Math.floor(r * 3)] : (r < 0.5 ? 'bullish' : 'bearish');
   }
-}
-
-function classifyOutcome(outcomeCandles, priceBefore) {
-  const priceAfter = outcomeCandles[outcomeCandles.length - 1].close;
-  const changePct = (priceAfter - priceBefore) / priceBefore;
-  if (changePct > 0.01) return 'bullish';
-  if (changePct < -0.01) return 'bearish';
-  return 'flat';
+  switch (chartType) {
+    case 'clean':         return r < 0.8 ? bias : (r < 0.9 ? 'flat' : other);
+    case 'ambiguous':      return r < 0.4 ? bias : (r < 0.7 ? 'flat' : other);
+    case 'multi_concept':  return r < 0.65 ? bias : (r < 0.85 ? 'flat' : other);
+    default:                return ['bullish', 'bearish', 'flat'][Math.floor(r * 3)]; // no_setup
+  }
 }
 
 function buildSrLevels(proximity, price, generatedLevel) {
@@ -138,4 +129,4 @@ function buildSrLevels(proximity, price, generatedLevel) {
   return [{ price: price * (1 + offset * randRange(0.12, 0.2)), type }];
 }
 
-module.exports = { generateChart, LEAD_IN, OUTCOME };
+module.exports = { generateChart, LEAD_IN };

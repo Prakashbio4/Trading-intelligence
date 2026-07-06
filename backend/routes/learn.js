@@ -30,25 +30,16 @@ function chartToRow(chart, sessionId, userId) {
 
 // What the client may see BEFORE answering — ground truth (pattern identity,
 // clarity, chart type, outcome, S/R annotation) is withheld entirely. The
-// user reads the raw candles/volume just like a real chart.
+// user reads the raw candles/volume just like a real chart. There is no
+// per-chart reveal after answering either — scoring is silent, and nothing
+// about a chart is shown until the session-end review (chartToClientReview).
 function chartToClientPreAnswer(row) {
-  const visibleCandles = row.ohlc_data.filter(c => c.zone !== 'outcome');
-  const visibleDates = new Set(visibleCandles.map(c => c.date));
   return {
     id: row.id,
     chartIndex: row.chart_index,
-    ohlcData: visibleCandles,
-    volumeData: row.volume_data.filter(v => visibleDates.has(v.date)),
+    ohlcData: row.ohlc_data,
+    volumeData: row.volume_data,
     answered: !!row.answered_at,
-  };
-}
-
-function chartToClientPostAnswer(row) {
-  return {
-    id: row.id,
-    chartIndex: row.chart_index,
-    outcomeCandles: row.ohlc_data.filter(c => c.zone === 'outcome'),
-    srLevels: row.sr_levels,
   };
 }
 
@@ -188,7 +179,7 @@ router.get('/sessions/:id', authMiddleware, async (req, res) => {
 
     const charts = session.completed_at
       ? chartRows.map(chartToClientReview)
-      : chartRows.map(row => row.answered_at ? { ...chartToClientPreAnswer(row), ...chartToClientPostAnswer(row) } : chartToClientPreAnswer(row));
+      : chartRows.map(chartToClientPreAnswer);
 
     res.json({ session: sessionToClient(session), charts });
   } catch (err) {
@@ -196,7 +187,8 @@ router.get('/sessions/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /learn/charts/:id/answer — submit the 3-tap call + notes, get the outcome reveal
+// POST /learn/charts/:id/answer — submit the 3-tap call + notes. Scoring is silent —
+// no verdict or score comes back here; the trader finds out at session end.
 router.post('/charts/:id/answer', authMiddleware, async (req, res) => {
   try {
     const { userDetection, userPatternSlug = null, userConfidence, userNotes = '', userConceptsNoted = [] } = req.body || {};
@@ -235,7 +227,7 @@ router.post('/charts/:id/answer', authMiddleware, async (req, res) => {
       .single();
     if (updateErr) throw updateErr;
 
-    res.json(chartToClientPostAnswer(updated));
+    res.json({ ok: true, id: updated.id });
   } catch (err) {
     res.status(500).json({ error: 'Could not submit answer', detail: err.message });
   }

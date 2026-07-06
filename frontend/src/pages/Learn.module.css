@@ -52,15 +52,6 @@
 .tapRow { display: flex; gap: var(--sp-2); }
 .tapRow .btn { flex: 1; justify-content: center; }
 
-.revealRow {
-  width: 100%;
-  max-width: 480px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-3);
-}
-
 .finishRow { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); padding: var(--sp-10) 0; }
 
 .scoreGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-3); }

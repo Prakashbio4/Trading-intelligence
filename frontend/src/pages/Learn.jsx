@@ -59,8 +59,8 @@ export default function Learn() {
     setNudges(ns => ns.filter(n => n.id !== id));
   }
 
-  function onChartAnswered(chartId, reveal) {
-    setCharts(cs => cs.map(c => (c.id === chartId ? { ...c, answered: true, ...reveal } : c)));
+  function onChartAnswered(chartId) {
+    setCharts(cs => cs.map(c => (c.id === chartId ? { ...c, answered: true } : c)));
   }
 
   async function onFinish() {
@@ -215,7 +215,7 @@ function SessionRunner({ charts, currentIndex, patterns, onAnswered, onAdvance, 
         key={chart.id}
         chart={chart}
         patterns={patterns}
-        onAnswered={reveal => onAnswered(chart.id, reveal)}
+        onAnswered={() => onAnswered(chart.id)}
         onNext={currentIndex + 1 < charts.length ? onAdvance : onFinish}
         isLast={currentIndex + 1 >= charts.length}
       />
@@ -223,83 +223,74 @@ function SessionRunner({ charts, currentIndex, patterns, onAnswered, onAdvance, 
   );
 }
 
+// No reveal step — scoring is silent per chart. Submitting a call advances
+// straight to the next chart (or to the session summary on chart 10).
 function ChartCall({ chart, patterns, onAnswered, onNext, isLast }) {
   const [detection, setDetection] = useState(null);
   const [patternSlug, setPatternSlug] = useState('');
   const [confidence, setConfidence] = useState(null);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [reveal, setReveal] = useState(chart.answered ? { outcomeCandles: chart.outcomeCandles, srLevels: chart.srLevels } : null);
 
   async function submit() {
     if (!detection || !confidence) return;
     setSubmitting(true);
     try {
-      const data = await answerLearnChart(chart.id, {
+      await answerLearnChart(chart.id, {
         userDetection: detection.toLowerCase(),
         userPatternSlug: patternSlug || null,
         userConfidence: confidence,
         userNotes: notes,
       });
-      setReveal(data);
-      onAnswered(data);
+      onAnswered();
+      onNext();
     } catch (err) {
       alert(err.message);
-    } finally {
       setSubmitting(false);
     }
   }
 
-  const combinedCandles = reveal ? [...chart.ohlcData, ...reveal.outcomeCandles] : chart.ohlcData;
-
   return (
     <div className={styles.chartCall}>
-      <CandleChart candles={combinedCandles} srLevels={reveal ? reveal.srLevels : []} showVolume width={480} height={220} />
+      <CandleChart candles={chart.ohlcData} showVolume width={480} height={220} />
 
-      {!reveal ? (
-        <div className={styles.callForm}>
-          <div className={styles.callGroup}>
-            <span className={styles.callLabel}>Setup present</span>
-            <div className={styles.tapRow}>
-              {DETECTION_OPTIONS.map(opt => (
-                <button key={opt} type="button"
-                  className={`btn ${detection === opt ? 'btn-primary' : 'btn-ghost'}`}
-                  onClick={() => setDetection(opt)}>{opt}</button>
-              ))}
-            </div>
+      <div className={styles.callForm}>
+        <div className={styles.callGroup}>
+          <span className={styles.callLabel}>Setup present</span>
+          <div className={styles.tapRow}>
+            {DETECTION_OPTIONS.map(opt => (
+              <button key={opt} type="button"
+                className={`btn ${detection === opt ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setDetection(opt)}>{opt}</button>
+            ))}
           </div>
-
-          <div className={styles.callGroup}>
-            <span className={styles.callLabel}>Pattern type</span>
-            <select value={patternSlug} onChange={e => setPatternSlug(e.target.value)}>
-              <option value="">Not sure / n-a</option>
-              {patterns.map(p => <option key={p.slug} value={p.slug}>{p.display_name}</option>)}
-            </select>
-          </div>
-
-          <div className={styles.callGroup}>
-            <span className={styles.callLabel}>Confidence</span>
-            <div className={styles.tapRow}>
-              {CONFIDENCE_OPTIONS.map(opt => (
-                <button key={opt} type="button"
-                  className={`btn ${confidence === opt ? 'btn-primary' : 'btn-ghost'}`}
-                  onClick={() => setConfidence(opt)}>{opt}</button>
-              ))}
-            </div>
-          </div>
-
-          <textarea rows={2} placeholder="Optional reasoning notes…" value={notes} onChange={e => setNotes(e.target.value)} />
-
-          <button className="btn btn-primary" onClick={submit} disabled={!detection || !confidence || submitting}>
-            {submitting ? <span className="spinner" /> : 'Call it'}
-          </button>
         </div>
-      ) : (
-        <div className={styles.revealRow}>
-          <p className="muted">Next 5 candles revealed above.</p>
-          <button className="btn btn-primary" onClick={onNext}>{isLast ? 'Finish session' : 'Next chart'}</button>
+
+        <div className={styles.callGroup}>
+          <span className={styles.callLabel}>Pattern type</span>
+          <select value={patternSlug} onChange={e => setPatternSlug(e.target.value)}>
+            <option value="">Not sure / n-a</option>
+            {patterns.map(p => <option key={p.slug} value={p.slug}>{p.display_name}</option>)}
+          </select>
         </div>
-      )}
+
+        <div className={styles.callGroup}>
+          <span className={styles.callLabel}>Confidence</span>
+          <div className={styles.tapRow}>
+            {CONFIDENCE_OPTIONS.map(opt => (
+              <button key={opt} type="button"
+                className={`btn ${confidence === opt ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setConfidence(opt)}>{opt}</button>
+            ))}
+          </div>
+        </div>
+
+        <textarea rows={2} placeholder="Optional reasoning notes…" value={notes} onChange={e => setNotes(e.target.value)} />
+
+        <button className="btn btn-primary" onClick={submit} disabled={!detection || !confidence || submitting}>
+          {submitting ? <span className="spinner" /> : (isLast ? 'Call it — finish session' : 'Call it')}
+        </button>
+      </div>
     </div>
   );
 }
