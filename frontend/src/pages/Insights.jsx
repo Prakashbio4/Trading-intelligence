@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import ChatPanel from '../components/ChatPanel.jsx';
-import { getLearnInsights } from '../api/index.js';
+import { getLearnInsights, getInsightsContext, sendInsightsChat } from '../api/index.js';
 import styles from './Insights.module.css';
 
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const UNLOCK_AT = 20;
 
 const PLACEHOLDER_CARDS = [
@@ -20,8 +19,7 @@ export default function Insights() {
   const [learn,   setLearn]     = useState(null);
 
   useEffect(() => {
-    fetch(`${BASE}/journal/insights-context`)
-      .then(r => r.json())
+    getInsightsContext()
       .then(data => { setContext(data); setLoading(false); })
       .catch(err => { setError(err.message); setLoading(false); });
     getLearnInsights().then(setLearn).catch(() => {});
@@ -223,13 +221,7 @@ function InsightsChat({ context }) {
     setHistory(h => [...h, optimistic]);
 
     try {
-      const res = await fetch(`${BASE}/journal/insights-chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, context, history }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      const data = await sendInsightsChat(text, context, history);
       setHistory(h => [...h, { role: 'assistant', content: data.reply }]);
     } catch (err) {
       setError(err.message);
