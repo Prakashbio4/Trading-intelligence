@@ -1,4 +1,4 @@
-# Wick Redesign — Dashboard, Analyse & Journal (PRD)
+# Wick Redesign — Dashboard, Analyse, Journal & Insights (PRD)
 
 **Status:** Draft — for discussion, not yet scoped into build tasks.
 
@@ -93,6 +93,82 @@ Most of the outcome-tracking backbone already exists: automatic price snapshots 
 
 ---
 
+## Page 4 — Insights: the diagnostic layer beneath the scoreboard
+
+**Purpose:** Insights has one job — tell you what's pulling your win rate and weighted P&L down. Dashboard tells you the score is bad; Insights tells you why. It's purely retrospective: it explains what happened, never what to do next.
+
+### What Insights does NOT do
+
+- Recommend trades or setups.
+- Replace the per-session chat in Analyse.
+- Give generic trading advice — every insight here is grounded in your own journal data.
+- Look forward. Nothing on this page tells you what to trade. Everything on it tells you what to fix.
+
+### Section 1 — Scoreboard anchor
+
+Win Rate and Weighted Average P&L repeated at the top, identical to Dashboard, so you always know what the diagnostic below is explaining without switching tabs.
+
+### Section 2 — Signal breakdown
+
+Every journal entry carries a session title (e.g. *"Bullish Harami, 2x avg volume"*). Insights aggregates across entries into a per-signal performance table:
+
+| Signal | Win % | Avg P&L | Trades |
+|---|---|---|---|
+| Bullish Harami (vol confirmed) | 61% | +0.8R | 18 |
+| Bearish Engulfing | 34% | −1.2R | 12 |
+| Morning Star | 70% | +1.1R | 6 |
+
+Two flags surface automatically:
+- **Biggest drag** — the signal with the worst weighted P&L contribution, highlighted as the one costing you the most money.
+- **Underused winner** — a signal with a strong win rate and P&L but a low trade count, surfacing whether you're avoiding a setup that actually works for you.
+
+Where the data allows, it also shows whether a setup performs differently volume-confirmed vs. not — this falls out naturally from the session title structure, with no extra tagging required.
+
+### Section 3 — Behavioral drag
+
+Depends on two data points captured at journal close:
+- **Exit reason tag** (required, not optional): Stop hit / Target hit / Manual exit — conviction flip / Manual exit — fear or discomfort / Time-based exit.
+- **Plan-vs-reality drift** (already part of the Journal design above): cases where you decided Skip/Watch but traded anyway, or where the actual entry, stop, or size deviated significantly from the analysis.
+
+These aggregate into:
+- **Manual exit rate on winners** — how often you cut a winner before target, and what that costs in R.
+- **Plan override frequency** — how often your actual trade diverged from your analysis verdict, and whether overriding helped or hurt on average.
+- **Risk management consistency** — whether position sizing stays within your stated rules or drifts session to session.
+
+Shown as simple numbers and short trend lines — the pattern should be visible without a paragraph explaining it.
+
+### Section 4 — Technical accuracy trends
+
+Fed by the report-card tags from each Analyse session (observed well / missed / assumed / ignored / overlooked / confused). Aggregated over time into:
+- Which skills are consistently strong (e.g. trend identification).
+- Which skills are consistently weak (e.g. volume confirmation before calling a breakout).
+- Which skills are improving vs. plateauing.
+
+This is the accuracy-in-reading dimension, grounded in real mentor-session data rather than self-assessment — but it only becomes meaningful after roughly 10–15 Analyse sessions, so a placeholder message should show until that threshold is crossed.
+
+### Section 5 — Recency flag
+
+Compares your last 14 days against your all-time baseline. If win rate or weighted P&L has dropped past a meaningful threshold (suggested: 10 percentage points on win rate, or 0.3R on weighted P&L), a flag surfaces at the top of the page — passive, not pushed as a notification. This distinguishes a recent regression from a long-standing pattern, which changes how you should respond to it.
+
+### Section 6 — Insights chat
+
+A persistent chat anchored to your full journal history, at the bottom of the page. Distinct from the per-entry chat in Journal — this one spans the entire record: *"Which setups have I been most consistent on in the last 60 days?"*, *"How many of my manual exits on winning trades happened in the first hour of the session?"*, *"Is my performance better on trending days vs. sideways markets?"*
+
+It has no access to external market data or generic trading knowledge in this context — strictly your own journal, which keeps it diagnostic rather than advisory. The structured sections above answer known diagnostic questions; the chat answers the ones you think of yourself, which are often more specific and more useful than anything a fixed template anticipates. Both are needed.
+
+### What this depends on (data requirements)
+
+Three things need to be true at the journal-entry level for this page to work:
+- **Session title always set** — part of the Journal design above.
+- **Exit reason captured on close** — a required field, not optional. Without it, Section 3 degrades significantly, so it should be enforced as a required close field rather than a nice-to-have.
+- **Analyse report-card tags written to the journal record** — the link between Analyse and Journal that needs to be confirmed as part of the data model, since Section 4 has nothing to aggregate without it.
+
+### What we already have to build this on
+
+Worth being direct about: none of the three fields above exist in the app's data model today — session title, the exit-reason tag, and report-card tags are all new fields the journal-entry schema needs to add. The aggregation logic itself (grouping by signal, computing win rate/avg P&L per group, the recency comparison) is straightforward once those fields exist. The cross-session chat pattern is already proven, though — Insights already has a version of it today, just narrower in scope (general pattern questions) than what's described here (drift, exit behavior, recency).
+
+---
+
 ## Why it's designed this way, in plain terms
 
 There are really two different jobs being done here, and keeping them separate is what makes the mentor trustworthy:
@@ -131,7 +207,7 @@ That separation is the whole difference between "Wick coaches you" and "Wick is 
 
 ## Phasing
 
-- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L), the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning that probes reasoning rather than just checking answers, a fact-anchored challenge/defense loop, trade-plan check, and a coaching-style end-of-session report card), and the Journal refinements (stale-trade flag, plan-vs-reality drift detection, journal-wide chat, and the list-management features).
+- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L), the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning that probes reasoning rather than just checking answers, a fact-anchored challenge/defense loop, trade-plan check, and a coaching-style end-of-session report card), the Journal refinements (stale-trade flag, plan-vs-reality drift detection, journal-wide chat, and the list-management features), and Insights as the diagnostic layer beneath the scoreboard (signal breakdown, behavioral drag, technical accuracy trends, recency flag, and the journal-wide chat) — which depends on the session-title, exit-reason, and report-card-tag fields introduced in Analyse and Journal above.
 - **Phase 2 (detailed below):** a strategy backtesting engine, plus — further out still — a long-term personal trading-pattern profile built from many mentor sessions over time.
 
 ---
