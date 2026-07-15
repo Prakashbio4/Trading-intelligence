@@ -94,5 +94,46 @@ That separation is the whole difference between "Wick coaches you" and "Wick is 
 
 ## Phasing
 
-- **Phase 1 (this document):** Dashboard scoreboard (win rate + weighted avg P&L) and the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning, trade-plan check, end-of-session report card).
-- **Phase 2 (already discussed, separate from this document):** a strategy backtesting engine (test a rule against years of real history, honestly reporting sample size and costs) and a long-term personal trading-pattern profile built from many mentor sessions over time.
+- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L) and the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning, trade-plan check, end-of-session report card).
+- **Phase 2 (detailed below):** a strategy backtesting engine, plus — further out still — a long-term personal trading-pattern profile built from many mentor sessions over time.
+
+---
+
+## Phase 2 — Strategic Backtesting
+
+### The problem this solves
+
+Today, if you tell Wick "I trade based on RSI and MACD," the mentor (Phase 1) can ask you about it and check that your *reading* of the numbers is correct. But it can't tell you whether that combination, at those specific thresholds, has actually led to good trades in the past. Backtesting answers a different question: *"would this exact rule have worked, historically, on this specific stock?"* It's evidence the mentor can cite — not a replacement for the mentor.
+
+### How it will work, step by step
+
+1. **You define your strategy as precise rules** — nothing a computer has to interpret loosely. For example: *"Buy when the 20-day average crosses above the 50-day average, RSI is below 60, and volume is above the 20-day average. Sell when price closes below the 20-day average, or hits a 2% stop loss, or a 5% target."*
+2. **The system pulls years of real daily price history** for that specific stock (e.g. Titan) from our existing market data subscription — the same one already powering the live charts.
+3. **It replays that history one day at a time**, exactly as a trader would have lived through it — at each point it only knows what's happened up to that day, never what comes next. When your rule's conditions are met, it "buys" at the next day's opening price, the same way a real order would actually fill. This is what keeps the test honest instead of accidentally letting the strategy peek into the future.
+4. **It behaves like a real trading account** — a starting cash balance, position sizes based on how much risk you're willing to take per trade, and real trading costs (brokerage, taxes, slippage) deducted on every trade. No frictionless fantasy numbers.
+5. **Every trade gets logged** — entry, exit, profit or loss, how long it was held, and why it closed.
+6. **At the end, it produces real statistics** — win rate, average win vs. average loss, total return, and importantly, how bad the worst losing stretch was, not just the headline number. A strategy that made money by taking huge risks should look different from one that made the same money safely.
+
+### Why it's designed this way, in plain terms
+
+Most home-built backtests cheat without realizing it: they let a strategy "see the future" by accident, they ignore real trading costs, or they only test on stocks that are still around today, which quietly flatters the results (a stock that went bankrupt and got delisted never shows up to drag the numbers down). This version is built to avoid those traps from day one, even when that means the numbers look less impressive than a naive version would show. An honest 45% win rate is worth more than a flattering 70% that's secretly cheating.
+
+### What this version deliberately does not do (yet)
+
+- It won't test options or futures strategies — regular stock buy/sell only, to start.
+- It won't automatically try hundreds of variations of your rule to find the "best" numbers. That kind of auto-tuning is a genuinely risky feature to add casually — a strategy can be tuned until it looks perfect on old data purely by chance, then fail immediately in real trading. We'd add this later, with real safeguards, not as a first version.
+- It won't yet break results down separately for bull markets vs. bear markets vs. sideways markets, the way professional funds do. That's a valuable refinement, but it comes after the core engine's numbers are trusted, not before.
+
+### Known limitations, stated upfront rather than discovered later
+
+- Our market data only goes back to 2020 and only covers stocks currently listed — so a rare setup might only have a handful of past examples to learn from. We'll always show that count next to the result (e.g. "14 instances") rather than hiding a small sample behind a clean-looking percentage.
+- Stock splits, bonus shares, and dividends need to be handled correctly, or a plain stock split could look like a 50% overnight crash in the raw data. This has to be solved before any backtest number can be trusted — it's a data-correctness problem, not a nice-to-have.
+- A backtest on one stock, by itself, only tells you about that one stock's past — it doesn't prove the strategy is generally sound. Testing across many stocks and market conditions is a further refinement, not part of this first version.
+
+### How this connects back to the mentor
+
+This isn't a separate tool bolted onto the side — it's a new source of evidence the mentor can eventually draw on. Once your strategy is stated clearly enough to test, Wick can move from *"your reasoning checks out"* to *"and historically, a setup like this has worked about 40% of the time over the last 14 instances on this stock"* — turning the backtester into supporting evidence for coaching, rather than a separate report you have to go interpret on your own.
+
+### Further out still: the personal trading-pattern profile
+
+Beyond both of these, there's a longer-term idea worth keeping on the roadmap: once enough mentor sessions have piled up, Wick could start noticing patterns in *how you personally* trade — not just whether a strategy works, but things like "you tend to enter a day early" or "you do well in trending markets but struggle in sideways ones." That needs a large volume of sessions to say anything reliable, so it's intentionally placed after both Phase 1 and the backtesting engine, not alongside them.
