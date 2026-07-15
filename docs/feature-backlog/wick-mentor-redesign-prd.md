@@ -1,4 +1,4 @@
-# Wick Redesign — Dashboard, Analyse, Journal, Insights & Learn (PRD)
+# Wick Redesign — Dashboard, Analyse, Journal, Insights, Learn & Signals (PRD)
 
 **Status:** Draft — for discussion, not yet scoped into build tasks.
 
@@ -366,6 +366,162 @@ The one upfront content effort required before Learn can fully deliver on its pr
 
 ---
 
+## Page 6 — Signals: your edge, scanned today
+
+### Why Signals exists, and why it's different
+
+Every major trading platform — TradingView, Streak, Chartink, Sensibull — runs the same model: pre-built screener strategies (RSI below 30, golden cross, volume breakout) scan the market and return a list of stocks. The platform's job ends at the list. The trader still has to decide whether they can read the setup, whether they have an edge on it, and whether their skill level supports trading it live. The platform has no opinion on any of that.
+
+Wick's rule for Signals: **don't replicate what others have already mastered.** A new trader's actual problem isn't a shortage of screeners — it's not knowing which strategies to even look for, and the ones they do know may not be ones they can reliably execute yet. Showing a new trader 40 stocks matching a complex screener doesn't help; it overwhelms them and erodes confidence when they inevitably misread half the setups. Signals is built around a different premise: **surface opportunities the trader can actually act on, based on what they know and what they've demonstrated they can read** — then, separately, show them what to learn next to expand that edge over time.
+
+### The two jobs Signals does
+
+```
+SIGNALS PAGE
+│
+├── JOB 1 — YOUR EDGE, SCANNED TODAY
+│         Stocks showing your patterns, filtered by your skill,
+│         ranked by your historical edge.
+│         Primary surface. Daily utility.
+│
+└── JOB 2 — EXPAND YOUR HORIZON
+          Strategies you do not trade yet but could learn next.
+          Adjacent to your current edge. Statistically filtered.
+          Links directly into Learn.
+          Growth layer. Not time-pressured.
+```
+
+These are sequenced, not competing. Job 1 is what a trader needs before a session — prominent, at the top. Job 2 is what a trader engages with when thinking about their development, not their next trade — a clearly separated section below.
+
+### Job 1 — Your edge, scanned today
+
+**What it produces:** a ranked list of stocks currently showing *the trader's own* patterns — not the market's best opportunities in aggregate, but the specific setups this trader has traded before, filtered by whether they can actually read them, ranked by how strong their historical edge is on each one. The output isn't "hot stocks today" — it's "your setups in the market today."
+
+**Three layers, run in sequence, each narrowing the result further:**
+
+- **Layer 1 — Pattern match.** Scan NSE for stocks currently showing patterns from the trader's own Journal history — drawn from session titles (e.g. *"Bullish Harami 2x avg volume"*). If a pattern has never appeared in the trader's Journal, it never appears in the scan. Not a generic market screener — it only looks for what this trader has chosen to trade.
+- **Layer 2 — Skill gate.** Cross-reference the trader's Learn detection rate per pattern. Below 60% detection, that pattern is suppressed from the output — regardless of how clean the setup looks on the chart. A trader who can't reliably identify a Bearish Engulfing in a controlled drill will misread it live. Not negotiable as a principle, even if the 60% threshold itself gets revisited later (same bar Learn's nudge system already uses).
+- **Layer 3 — Edge ranking.** Among patterns that pass Layers 1 and 2, rank by the trader's historical edge — win rate and weighted P&L per pattern, from the Insights signal breakdown. A stock showing the trader's highest-win-rate pattern ranks above one showing a pattern with weak or negative history. Volume confirmation, where present in the session title, is a secondary ranking factor.
+
+**Example output:**
+
+| Stock | Pattern detected | Your win rate | Avg P&L | Skill gate |
+|---|---|---|---|---|
+| TITAN | Bullish Harami (vol confirmed) | 61% | +0.8R | Clear (74%) |
+| INFY | Morning Star | 70% | +1.1R | Clear (81%) |
+| HDFC | Bearish Engulfing | 34% | −1.2R | Suppressed (52%) |
+| RELIANCE | Bullish Engulfing | 55% | +0.6R | Clear (68%) |
+
+The suppressed row (HDFC) shows greyed out with a stated reason — *"Your detection rate on this pattern is below the threshold — drill it in Learn before trading it live."* Not hidden, just visually distinguished, with the reason stated plainly.
+
+**What happens after a signal surfaces:** Signals surfaces the candidate — it does not say what to do with it. The next step is opening the stock in Analyse: a full mentoring session, defending the read, laying out a trade plan, letting Wick check it against real chart data. Analyse is where the decision gets made; Signals is where the candidate gets found. This separation is deliberate — Signals feeding directly into a trade call would make Wick an advisory service. Feeding into Analyse instead keeps it a mentor: the trader still does the work, Signals just points them at the right charts.
+
+**The cold-start problem — new traders with no history.** Job 1 depends on two things a brand-new trader doesn't have yet: Journal history (Layer 1) and Learn detection rates (Layer 2).
+- **No Journal history:** Layer 1 can't run. Shown instead: *"Start logging your sessions in Journal to unlock personalised signals. Until then, explore strategies you might want to learn in the section below."* Job 2 is fully available from day one.
+- **Journal exists, no Learn data yet:** Layer 1 runs, Layer 2 is skipped, Layer 3 runs off Insights if available or falls back to chronological order. Shown: *"Your results will sharpen as you complete Learn sessions — the skill gate activates once detection rate data exists."*
+- **Both exist:** the full three-layer filter runs as designed.
+
+Degraded but honest — Signals stays useful from the very first Journal entry while being transparent about what isn't personalized yet.
+
+### Job 2 — Expand your horizon
+
+**What it is:** a small, curated view of strategies the trader doesn't currently trade but could learn next — chosen by adjacency to their existing edge, filtered by statistical reliability, linked directly into Learn. Not a catalogue of every strategy — a considered set of specific next steps. The question it answers: *given what you already know and what you're already good at, what should you learn next?*
+
+**Three filters, all required:**
+- **Adjacency** — structurally similar to what the trader already trades, not a random addition. E.g. strong on Bullish Harami → Bullish Engulfing is adjacent (same bullish-reversal logic, cleaner structure, larger body); strong on Morning Star → Evening Star is adjacent (same three-candle logic, opposite direction). Adjacent patterns share enough structural DNA that existing perceptual skill transfers — it feels like growth, not a reset.
+- **Reliability** — every suggestion is filtered through Bulkowski's historical reliability data (how often the pattern actually leads to the expected outcome across a large sample). Weak historical reliability means no suggestion, regardless of adjacency. Popularity on other platforms is explicitly not a criterion.
+- **Skill ceiling** — no complex multi-concept strategies suggested until the trader has demonstrated consistent single-pattern detection above 75% across at least three patterns. The suggestion set scales with demonstrated skill.
+
+**What each suggestion shows:** what the pattern is (one sentence), why it's adjacent to a pattern the trader already trades, its Bulkowski reliability number (not Wick's opinion), and a direct action — *"Start learning this"* — which routes straight into Learn's Explore a Topic with the structured plan pre-generated. The set is intentionally small: two to three patterns at any time, a considered next step, not a menu to browse.
+
+**How Job 2 feeds back into Job 1:** when a trader works a Learn plan for a Job-2-suggested pattern and their detection rate crosses 60%, that pattern becomes eligible for Job 1's skill gate — Signals starts scanning for it live. The full growth loop: Signals identifies an adjacent pattern worth learning → Learn builds the skill → Signals starts surfacing live setups for it → Journal logs the trades → Insights measures the edge → Signals ranks it accordingly. The trader's personal signal universe expands as their skill does.
+
+### Page layout and interaction
+
+A single scrollable page, no tabs — Job 1 always above the fold, Job 2 below:
+
+```
+┌─────────────────────────────────────────┐
+│  SIGNALS                    [today]      │
+├─────────────────────────────────────────┤
+│  YOUR SETUPS TODAY                       │
+│                                          │
+│  INFY     Morning Star      70% · +1.1R  │
+│  TITAN    Bullish Harami    61% · +0.8R  │
+│  RELIANCE Bull. Engulfing   55% · +0.6R  │
+│                                          │
+│  ── suppressed ──────────────────────── │
+│  HDFC     Bearish Engulfing  [Learn first]│
+│                                          │
+├─────────────────────────────────────────┤
+│  EXPAND YOUR HORIZON                     │
+│                                          │
+│  Bullish Engulfing                       │
+│  Adjacent to your Harami edge            │
+│  Bulkowski reliability: 63%              │
+│  [Start learning this →]                 │
+│                                          │
+│  Evening Star                            │
+│  Adjacent to your Morning Star edge      │
+│  Bulkowski reliability: 72%              │
+│  [Start learning this →]                 │
+└─────────────────────────────────────────┘
+```
+
+Tapping a Job 1 result opens the stock directly in Analyse, pre-loaded with the stock name and the detected pattern noted as context — Signals doesn't pre-fill any analysis, it only opens the right stock and lets the full Analyse flow run. Tapping "Start learning this" in Job 2 routes straight into Learn's Explore a Topic with the pattern pre-populated and the four-step plan generated immediately — no extra input needed.
+
+**Scan freshness:** runs once per day at market open; the page shows the date of the most recent scan. No live intraday refresh in this version — daily chart patterns are the target, and daily data is sufficient for that. Intraday scanning is a later consideration.
+
+### What Signals does NOT do
+
+- Surface pre-built generic screener strategies from a library of popular setups.
+- Tell the trader to buy or sell — ever. It surfaces a candidate; Analyse does the work.
+- Show setups the trader hasn't demonstrated they can read, without clearly flagging them as suppressed and explaining why.
+- Use popularity or trending volume as a ranking criterion — edge quality and the skill gate are the only filters.
+- Surface expansion strategies without the Bulkowski reliability filter — adjacency alone is never enough.
+- Replace Analyse. A signal is the start of a process, not the end of one.
+
+### What Signals depends on
+
+| Data requirement | Source | Status | Needed for |
+|---|---|---|---|
+| Session titles (pattern library per trader) | Journal | Live today | Layer 1 pattern match |
+| Win rate and weighted P&L per pattern | Insights signal breakdown | Designed — see Insights section above | Layer 3 edge ranking |
+| Detection rate per pattern per trader | Learn drill sessions | Live today | Layer 2 skill gate |
+| NSE daily chart data | Groww market data subscription | Live — used in Analyse and Learn | Pattern detection scan |
+| Candlestick pattern detection logic | Existing codebase | Live today | Identifying patterns in scan results |
+| Bulkowski reliability data per pattern | Static reference — manual entry | Not yet built | Job 2 reliability filter |
+| Pattern adjacency map | Static reference — manual entry | Not yet built | Job 2 adjacency filter |
+
+**Two static references to build upfront, both one-time efforts, not ongoing operations:**
+- **Bulkowski reliability data** — a lookup table mapping each of the 33 existing patterns to its historical directional reliability from Bulkowski's published research. The numbers already exist and don't change. Estimated: about a day.
+- **Pattern adjacency map** — a manually defined map of which patterns are structurally adjacent to which others, with the reasoning stated explicitly. Doesn't need to cover every possible adjacency upfront — the 10–15 most common natural progressions is enough to start. Estimated: about half a day.
+
+### What we already have to build this on
+
+Worth being direct here, because this page looks the most different from what exists today of anything in this document: today's Signals is a generic daily scan across the whole tracked stock universe against a fixed 4-point checklist, flagging anything not yet journaled — the same checklist for every trader, no personalization, no skill gate, no edge ranking, no expansion suggestions. Almost everything described above is new *behavior*. What's already real and reusable: the daily scanning job itself, the underlying Groww data feed, the candlestick pattern detection logic (already used in Analyse and Learn), and — once built — Learn's detection rates and Insights' signal breakdown are exactly the two data sources Layers 2 and 3 need. The two static reference tables (Bulkowski reliability, adjacency map) don't exist in any form yet.
+
+### How Signals connects to the rest of Wick
+
+Signals is the output layer of the whole system — every other module feeds into it: Journal provides the pattern library and exit data, Learn provides the skill gate, Insights provides the edge ranking, and Analyse is what the trader does after Signals — the candidate becomes a session. No generic screener knows the trader's skill level; no journaling app scans the market. Wick does both, and the connection between them is what makes Signals genuinely personalized rather than personalized in name only. The trader's signal universe grows as they grow — that's the compounding effect of the whole system working together.
+
+### What success looks like
+
+- A trader opens Signals before a session and sees 3–5 stocks showing setups they can actually read — not a list of 40 generic screener hits.
+- A suppressed result is understood, not frustrating — the trader knows exactly why and what to do about it.
+- Tapping a signal result goes straight into an already-oriented Analyse session — the trader knows what pattern they're looking at, and the session focuses on whether the read holds up.
+- A trader who completes a Learn plan for a horizon suggestion sees that pattern start appearing in Job 1 results within weeks.
+- After six months of use, a trader's signal universe is measurably larger than when they started — and every pattern in it is one they can reliably read.
+- No trader ever receives a trade recommendation from Signals. Every output is a starting point for their own analysis, never a conclusion.
+
+### Signals phasing
+
+**Phase 1:** Job 1's full three-layer filter (pattern match, skill gate, edge ranking) with the cold-start degraded mode; Job 2's expansion suggestions (adjacency map + Bulkowski reliability filter) linked into Learn's Explore a Topic; suppressed results shown with reason and a Learn link; daily scan cadence at market open; tap-to-Analyse integration; Bulkowski data entered for all 33 patterns; adjacency map defined for the top 15 natural progressions.
+
+**Phase 2:** intraday scan refresh, once Analyse moves to live chart data; volume condition promoted to an explicit scan parameter (not just detected but used as a primary filter, once a trader's own session-title history shows volume-confirmed setups outperform); adjacency map expanded as pattern libraries grow beyond the initial 33; cross-pattern correlation — surfacing cases where two of a trader's patterns appear on the same stock simultaneously, which may historically (in their own Journal) carry higher conviction.
+
+---
+
 ## Why it's designed this way, in plain terms
 
 There are really two different jobs being done here, and keeping them separate is what makes the mentor trustworthy:
@@ -404,8 +560,8 @@ That separation is the whole difference between "Wick coaches you" and "Wick is 
 
 ## Phasing
 
-- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L), the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning that probes reasoning rather than just checking answers, a fact-anchored challenge/defense loop, trade-plan check, and a coaching-style end-of-session report card), the Journal refinements (stale-trade flag, plan-vs-reality drift detection, journal-wide chat, and the list-management features), Insights as the diagnostic layer beneath the scoreboard (signal breakdown, behavioral drag, technical accuracy trends, recency flag, and the journal-wide chat), and the Learn additions (Your Plan, Explore a Topic, coaching as conversation, the prediction-before-reveal and error-correction drill modes, and the gold standard pointer lookup table) — see each page's section above, and Learn's own phasing breakdown, for the full detail.
-- **Phase 2 (detailed below):** a strategy backtesting engine, the confidence-under-pressure drill mode and expanded topic curation in Learn, plus — further out still — a long-term personal trading-pattern profile built from many mentor sessions over time.
+- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L), the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning that probes reasoning rather than just checking answers, a fact-anchored challenge/defense loop, trade-plan check, and a coaching-style end-of-session report card), the Journal refinements (stale-trade flag, plan-vs-reality drift detection, failure-cause notes, journal-wide chat, and the list-management features), Insights as the diagnostic layer beneath the scoreboard (signal breakdown, behavioral drag, technical accuracy trends, recency flag, and the journal-wide chat), the Learn additions (Your Plan, Explore a Topic, coaching as conversation, the prediction-before-reveal and error-correction drill modes, and the gold standard pointer lookup table), and Signals rebuilt around personal edge (the three-layer filter — pattern match, skill gate, edge ranking — plus the horizon-expansion suggestions feeding into Learn) — see each page's section above, and Learn's and Signals' own phasing breakdowns, for the full detail.
+- **Phase 2 (detailed below):** a strategy backtesting engine, the confidence-under-pressure drill mode and expanded topic curation in Learn, intraday scanning and volume-based ranking in Signals, plus — further out still — a long-term personal trading-pattern profile built from many mentor sessions over time.
 
 ---
 
