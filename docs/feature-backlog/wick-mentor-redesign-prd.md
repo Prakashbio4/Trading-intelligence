@@ -8,6 +8,8 @@
 
 Wick is a mentor, not a tip service. It doesn't tell you what to buy or sell — it looks over your shoulder while you read a chart and tells you where your thinking is solid and where it isn't. The goal is to make you a better chart-reader over hundreds of sessions, not to hand you a verdict.
 
+**The bigger frame, for context (not scope):** charts are the starting medium, not the whole point. What Wick is really teaching is decision-making under uncertainty — reading evidence, forming a view, defending it, updating it. That's the same skill whether the medium is a candle today or options, portfolio allocation, or position sizing later. This is why the mentor is worth building carefully now — but it's a north star, not a reason to widen what Phase 1 or Phase 2 actually build. Both stay scoped to chart reading below.
+
 ---
 
 ## The problem with how these two pages work today
@@ -44,11 +46,15 @@ That's it. Everything else that used to live on this page (calibration charts, p
 
 4. **Every question is grounded in real numbers pulled from the actual chart data** — the real RSI value, the real MACD reading, the real candlestick pattern on the last several candles — not an AI's guess from looking at a picture. If your answer doesn't match what the data actually shows, Wick pushes back with the real number, the way a mentor says *"are you sure? look again"* — instead of silently marking you wrong.
 
-5. **You lay out your actual trade plan** — entry, stop loss, target — and Wick checks whether it holds up (is your stop near a real support level, is the reward worth the risk).
+5. **Wick asks "why," even when you're right.** Getting the answer correct isn't the finish line — a mentor cares more about *how* you got there than *what* you said. So instead of moving on after a correct answer, Wick sometimes asks the follow-up: *"Why do you think this is support? Which candles convinced you?"* If you say "price bounced here twice," it might ask, *"What did volume do on the second bounce?"* If you didn't check — it tells you to go look. That's the actual teaching moment, and it's the reason this isn't just a quiz.
 
-6. **You get a report card at the end** — not just right/wrong, but *why*: what you read correctly, and where your thinking broke down. For example: *"You correctly read the trend, but you called this a breakout even though volume didn't confirm it."*
+6. **You lay out your actual trade plan** — entry, stop loss, target — and Wick checks whether it holds up (is your stop near a real support level, is the reward worth the risk).
 
-7. **Over time (later phase, not in this version):** your sessions build a personal profile — Wick starts noticing patterns like *"you tend to enter one day early"* or *"you're strong at spotting setups but weaker at timing entries."* This becomes the long-term coaching layer.
+7. **If Wick disagrees with your thesis, it doesn't just announce it — it makes you defend it first.** Instead of immediately revealing "the data says otherwise," it says *"convince me"* and lets you argue your case. Only if your defense doesn't hold up against the real facts does Wick reveal the number that contradicts you. This stays honest, not just adversarial for its own sake — Wick is only allowed to push back with something concrete from the fact data (or, later, from backtest evidence), never a rhetorical "are you sure?" with nothing behind it. If your case is actually solid, Wick concedes.
+
+8. **You get a report card at the end** — not a checklist of right/wrong, but a coaching read on your reasoning: *"Trend identification: strong. Confirmation: weak — you didn't check volume before calling this a breakout. Risk planning: solid."* Instead of ✓/✗, the language is closer to how a coach talks: **observed well, missed, assumed, ignored, overlooked, confused** — words that describe thinking, not a test score.
+
+9. **Over time, Wick adapts how hard it probes you, based on your own history.** This starts modestly (noticing within a single session that you're breezing through trend questions but struggling on volume) and grows over many sessions into a real profile — *"you tend to enter one day early," "you're strong at spotting setups but weaker at timing entries."* Once Wick knows your track record, it spends less time re-testing what you're already good at and digs harder exactly where you're weak, instead of asking the same fixed depth of question to everyone. This is the long-term coaching layer, and arguably the hardest thing here for a competitor to copy — but it only becomes real after real usage, not on day one (see caveat below).
 
 ### What this version deliberately does NOT do
 
@@ -81,20 +87,22 @@ That separation is the whole difference between "Wick coaches you" and "Wick is 
 
 - Our market data only goes back to 2020, and only covers stocks that are currently listed — if a company got delisted, we have no history for it. Worth remembering any time we lean on historical data.
 - The mentor can only fact-check what's actually checkable — RSI, volume, support/resistance, candlestick patterns. For more subjective reads (*"does this feel like accumulation?"*), it can coach and probe, but it can't grade you against a hard number. We should never dress up a subjective opinion as if it were a checked fact.
+- The long-term "personal fingerprint" (point 9 above) is only as good as the honesty of the tagging behind every session. Consistent, fact-grounded critique tags across 200 sessions become a genuinely sharp profile; loosely-graded, inconsistent tags become confident-sounding noise, and there's no cheap way to tell the difference until a lot of sessions have already piled up. This is a reason to hold the fact-grounding and tagging quality to a high bar from the very first session, even though the payoff (the fingerprint) only shows up much later.
 
 ---
 
 ## What success looks like
 
 - You open Analyse, describe your strategy once, and the questions genuinely feel tailored to how you think — not a generic checklist repeated for everyone.
-- Whenever Wick disagrees with your read, it always shows you the real number behind the disagreement — never just an opinion.
+- Whenever Wick disagrees with your read, it always shows you the real number behind the disagreement — never just an opinion, and never before letting you make your case first.
+- A correct answer isn't the end of the conversation — you come away from a session having had to explain *why*, not just having been told you were right.
 - Dashboard tells you in one glance whether your trading is actually working, without needing to interpret six different stats.
 
 ---
 
 ## Phasing
 
-- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L) and the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning, trade-plan check, end-of-session report card).
+- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L) and the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning that probes reasoning rather than just checking answers, a fact-anchored challenge/defense loop, trade-plan check, and a coaching-style end-of-session report card).
 - **Phase 2 (detailed below):** a strategy backtesting engine, plus — further out still — a long-term personal trading-pattern profile built from many mentor sessions over time.
 
 ---
