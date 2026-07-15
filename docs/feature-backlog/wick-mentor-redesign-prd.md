@@ -1,4 +1,4 @@
-# Wick Redesign — Dashboard, Analyse, Journal & Insights (PRD)
+# Wick Redesign — Dashboard, Analyse, Journal, Insights & Learn (PRD)
 
 **Status:** Draft — for discussion, not yet scoped into build tasks.
 
@@ -169,6 +169,196 @@ Worth being direct about: none of the three fields above exist in the app's data
 
 ---
 
+## Page 5 — Learn: a tailored application engine, not a content platform
+
+### Learning philosophy
+
+Learn is not a content platform — it's a tailored application engine. Three principles govern every design decision here:
+
+1. **The plan is the product.** Learn starts with a diagnosis drawn from Insights and Journal data, and generates a personal learning plan — what to work on, in what order, and why. A trader who opens Learn should never have to decide what to study next. The system already knows.
+2. **For concepts, point to the gold standard — never recreate it.** Existing resources on technical analysis are excellent — Varsity is thorough, Bulkowski is rigorous. There's no value in Wick rewriting explanations that already exist at high quality. When a trader needs to understand a concept, Wick tells them exactly what to read or watch — the specific chapter, the specific video, the specific timestamp. Curation is a pointer, not a content system.
+3. **Learning is application, not consumption.** Reading a Varsity chapter or watching a video is input, not learning. Learning happens when the trader applies the concept on a chart, gets it wrong, understands why, and tries again. The drill is where learning happens. Every other element in this module exists only to set up the next drill.
+
+Together, these define the sequence: **Insights-driven plan → minimum concept pointer → immediate application drill → coached on errors → plan updates.** The intelligence is in the plan and the coaching, not in the content.
+
+### What's already built today
+
+The core drill engine exists and is in use. Documented accurately here so new additions build on top of it, not alongside it.
+
+**The drill session** — 10 synthetic charts, one at a time, in a fixed mix: 3 clean (textbook-clear setups), 3 ambiguous (a real pattern with a deliberate flaw — bad volume, wrong support/resistance, a slightly off candle), 2 multi-concept (nothing decisive alone — trend, volume, and levels have to be weighed together), 2 no-setup (correct call is to pass). Charts are entirely synthetic — generated candle-by-candle with a known ground truth baked in. Deliberate: it gives precise control over how clean or flawed each example is. It also means Learn today has no dependency on real market data, unlike where Analyse is headed.
+
+**Per chart:** state whether a setup is present (Yes/No/Weak), pick the pattern if one is called, state confidence (Low/Medium/High), optionally write a reasoning note. No feedback between charts — scoring is silent, straight to the next chart, preventing anchoring on an early correct call.
+
+**End-of-session results:** three scores — Detection (setup present or not), Classification (named the right pattern), Calibration (appropriately confident, or high-confidence-and-wrong) — plus one AI-written coaching paragraph looking across all 10 calls and the trader's notes together, and a chart-by-chart correct/missed review list.
+
+**"Learn a topic"** (existing, on-demand): the trader declares what they read or watched about today, picks a pattern from a list, and starts a focused drill on just that pattern immediately — no plan, no preamble.
+
+**Nudges:** a background job scans performance data and surfaces proactive suggestions on the Learn home screen (e.g. *"your detection rate on Bullish Harami is 45%, below the 60% bar — worth a focused drill"*). Start it or dismiss it.
+
+**What all of this feeds:** every session writes pattern-level performance (detection rate, false-positive rate, calibration by pattern) back to Insights. A journal bridge checks whether patterns drilled well in Learn actually show up correctly in real Journal decisions — closing the loop between synthetic practice and live trading.
+
+### The three entry points — Learn home screen
+
+The home screen presents three distinct modes. The system's recommendation is always surfaced first, but the trader chooses which to enter and can override the recommendation at any point.
+
+```
+LEARN HOME
+│
+├── 1. YOUR PLAN        (system-generated from Insights + Learn data)
+│         Remediation track + Advancement track
+│         Trader follows, overrides, or defers
+│
+├── 2. DRILL NOW        (existing "Learn a topic" flow, unchanged)
+│         Pick a pattern from the library → immediate drill
+│         No plan, no preamble
+│
+└── 3. EXPLORE A TOPIC  (new)
+          Type any topic → structured plan generated
+          → gold standard pointers → then drill
+```
+
+#### Entry point 1 — Your Plan
+
+A system-generated personal learning plan, updated continuously from two sources: Insights (which signals are dragging win rate and weighted P&L) and Learn (detection rate, calibration score, false-positive rate per pattern). The plan is always ready when the trader opens Learn — never generated, requested, or configured on demand. It's simply there.
+
+**Two tracks:**
+- **Remediation** — targets the patterns where the trader is weakest by detection rate or P&L drag. Triggers below a 60% detection rate on a pattern, or when that pattern appears in the Insights signal breakdown as a meaningful P&L drag. Uses clean and ambiguous chart types — build reliable recognition before adding noise.
+- **Advancement** — targets patterns where the trader is already strong and pushes them into harder contexts. Triggers at a detection rate consistently above 80% on clean charts, routing into ambiguous and multi-concept sessions — build robustness, not just recognition. Most learning systems only remediate; this track is what makes the plan a growth engine, not just a gap-filler.
+
+**How it's presented:** what the system recommends this session and why (one sentence grounded in the trader's own data, never generic advice), which track it falls under, what to read or watch first if a pointer exists, and the option to follow it, pick a different pattern from the plan, or switch to Drill Now. The trader is never forced to follow the plan — but it's always the default, the path of least resistance.
+
+**How it updates:** after every drill session, performance writes back and the plan re-evaluates — a pattern crossing 80% moves from remediation to advancement; a pattern where calibration deteriorates can re-enter remediation even if detection is strong. A live document, not a fixed curriculum.
+
+#### Entry point 2 — Drill Now
+
+The existing "Learn a topic" flow, unchanged. Pick a pattern, start a focused drill immediately — no system recommendation, no preamble, no content pointer. This exists because a trader who just read about Morning Star wants to drill Morning Star right now, not follow the plan — respecting that intent is correct. The plan handles the default; Drill Now handles the override. Performance from these sessions writes back to the same store as planned sessions — it counts toward detection rate, calibration, and the journal bridge regardless of entry point.
+
+#### Entry point 3 — Explore a Topic (new)
+
+The trader types any topic they want to learn — a pattern not yet in their history, a concept from a book or video, a technique they want to understand. The system generates a structured plan for it and points to the best existing resources, then routes into a drill. This doesn't replace the plan — it extends Learn beyond the 33-pattern library into territory the trader initiates themselves. Self-directed, but structured rather than freeform.
+
+**Step 1 — Scope check.** Before generating anything, check whether the topic is in scope: technical analysis, chart reading, candlestick patterns, price action, volume analysis, trading psychology directly tied to chart-reading decisions. Outside that (fundamental analysis, options Greeks, portfolio allocation, macroeconomics) — Wick says so clearly and explains what it does cover. This keeps Learn from becoming a generic AI tutor.
+
+**Step 2 — Structured plan generation.** The structure is always the same four steps; what changes is the content pointers and chart difficulty mix:
+
+```
+Topic: [Ascending Triangle]
+─────────────────────────────────────────────
+What it is: [one sentence — Wick writes this]
+Why it matters: [tied to journal context where possible]
+
+Step 1 — Understand the concept
+  → Read:  Varsity Module 2, Chapter X
+  → Watch: [specific video title, channel, timestamp]
+
+Step 2 — Recognise it on a clean chart
+  → Drill: 10 charts, clean examples only
+
+Step 3 — Recognise it with noise
+  → Drill: 10 charts, ambiguous mix
+
+Step 4 — Apply it in context
+  → Drill: multi-concept charts where this pattern
+            is one signal among several
+```
+
+**Step 3 — Gold standard content pointers.** For every topic, point to the best existing resource rather than generating an explanation. Quality hierarchy: Zerodha Varsity first, Bulkowski's reference data for pattern statistics, CMT curriculum materials for what Varsity doesn't cover, curated videos at specific timestamps (never just a channel). For the existing 33-pattern library, the pointer comes from a pre-curated lookup table built manually — one resource per pattern, chosen once, reused every time. For topics outside the library, the system identifies the best available resource from the same hierarchy at query time. Either way, Wick never writes a generic explanation when a better one already exists.
+
+**Step 4 — Drill routing.** Once the trader has consumed the pointed resource and returns, the drill starts at Step 2 (clean charts). Progress through Steps 3 and 4 is tracked — the trader can leave and return across sessions without losing their place.
+
+**A build constraint worth stating explicitly:** synthetic chart generation for a brand-new topic requires manual setup — someone has to define the ground truth of what a correct example looks like before the system can generate and score it. For topics outside the existing 33-pattern library, the drill in Steps 2–4 uses **real historical chart examples (sourced from the existing Groww market data)** instead of synthetic charts. Less controlled than the synthetic approach, but viable — and the system flags this distinction to the trader rather than hiding it. New topics can graduate to full synthetic drill support over time as chart sets get built; Explore is how new patterns enter the library.
+
+### The full learning loop
+
+The same underlying loop runs across all three entry points — stated explicitly because the loop *is* the product. Each element is simple; the compounding effect across many sessions is what makes Learn valuable.
+
+```
+Insights identifies gap (signal drag or low detection rate)
+         ↓
+Plan generator prescribes: pattern + track (remediate or advance)
+         ↓
+Wick points to gold standard resource
+  ("Read this chapter. Watch this video at this timestamp.")
+         ↓
+Trader consumes the resource independently
+  (Wick is not involved here — this is on the trader)
+         ↓
+Trader returns and starts the drill
+         ↓
+Drill runs — chart type difficulty matched to the track
+         ↓
+Socratic coaching on errors
+  (not a monologue paragraph — a conversation)
+         ↓
+Performance written back to Insights and plan
+         ↓
+Plan updates based on new data → loop repeats
+```
+
+### Making it interactive — drill mode variations
+
+The standard 10-chart drill stays the primary mode. Four variations extend it without changing the underlying format — keeping sessions from feeling repetitive across many weeks, while training different angles of the same perceptual skill.
+
+| Mode | What it trains | How it differs from standard drill | Phase |
+|---|---|---|---|
+| Standard drill | Recognition and classification | Baseline — 10 synthetic charts, fixed mix, silent scoring | Live today |
+| Prediction before reveal | Setup-to-outcome connection | Chart shown up to a point, next 5 candles hidden. Trader calls the setup and predicts direction. Candles then revealed — real historical data, real outcome. | Phase 1 addition |
+| Error correction | Catching your own mistakes | Chart shown with a wrong annotation already placed. Trader identifies what's wrong with the call, not what the correct call is. | Phase 1 addition |
+| Confidence under pressure | Calibration under time constraint | Same drill format, 20 seconds per chart. Tests whether calibration holds under conditions closer to real trading. | Phase 2 |
+
+### Coaching — conversation, not paragraph
+
+Today's end-of-session coaching is a single AI-written paragraph — the one place in Learn still a monologue. The change: that paragraph becomes the opening move of a short conversation. After it surfaces, Wick asks one specific follow-up grounded in an error from that session — e.g. *"You were high-confidence on Chart 4 but missed the volume context entirely. What were you looking at when you made that call?"* The trader answers; Wick responds to their actual reasoning, not a generic template. Same Socratic principle governing Analyse — Wick only pushes back with something concrete, never a rhetorical "are you sure?" The exchange ends after one or two turns — a closing reflection, not a tutoring session.
+
+### The gold standard pointer layer — how it gets built
+
+The one upfront content effort required before Learn can fully deliver on its promise — a one-time manual curation task, not an ongoing content operation.
+
+**What needs to be built:** for each of the 33 existing patterns, someone identifies the single best Varsity chapter/section, the single best video (specific title, channel, timestamp), and optionally one Bulkowski reference for the statistically-minded trader. The output is a lookup table — pattern name → 2–3 resource pointers — living as a static reference. When the plan or Explore flow prescribes a pattern, the pointers are retrieved directly. No AI generation, no search at runtime — just a fast lookup.
+
+**What this is *not*:** not a content management system, not a RAG pipeline or vector search over documents, not an ongoing editorial operation, not Wick writing its own explanations. It's a spreadsheet, promoted to a database table — probably two to three focused days of curation across 33 patterns. The minimum viable content layer that makes "point to the gold standard" real.
+
+**For topics outside the 33-pattern library:** the system identifies the best available resource from the same quality hierarchy at query time rather than pre-curated. Frequently explored topics get promoted into the lookup table over time — Explore is the discovery mechanism for expanding the curated library.
+
+### What this section depends on
+
+| Data requirement | Source | Status | Needed for |
+|---|---|---|---|
+| Pattern-level detection rate per trader | Learn drill sessions | Live today | Plan generation, nudges |
+| Calibration score per pattern | Learn drill sessions | Live today | Plan generation |
+| Signal P&L drag per pattern | Insights (from Journal) | Designed — see Insights section above | Remediation track prioritisation |
+| Journal bridge — plan vs. real decisions | Journal + Learn | Live today | Loop closure |
+| Gold standard pointer lookup table | Manual curation | Not yet built | Entry points 1 and 3 |
+| Real historical charts (Groww) | Existing market data subscription | Live — used in Analyse | Prediction-before-reveal drill, Explore topics outside the 33-pattern library |
+
+### What Learn does NOT do
+
+- Generate its own explanations of trading concepts — it points to existing ones.
+- Teach fundamentals, options, or anything outside technical analysis and chart reading.
+- Replace Analyse — Learn trains perceptual skill on synthetic and historical charts; Analyse is where that skill gets applied on a real stock with real consequences tracked in Journal.
+- Make trading decisions or simulate portfolio outcomes.
+- Surface the plan without the trader opening Learn — no push notifications, no home-screen alerts outside the module itself.
+
+### What success looks like
+
+- A trader who opens Learn never has to decide what to study — the plan is already there, grounded in their own data.
+- When the plan prescribes a concept, the trader is pointed to the one best resource for it — not a list of options, not a Wick-written explanation.
+- Every session ends with the trader having applied something, not just read about it.
+- The coaching conversation surfaces one specific error and forces the trader to explain their reasoning — not a generic paragraph.
+- Patterns drilled well in Learn start showing up correctly in Journal decisions — the journal bridge confirms the loop is working.
+- A trader who explores a new topic gets a structured plan for it, not a blank page and a search bar.
+- Learn feels like a personal coach who knows exactly what you're weak at — not a course catalogue.
+
+### Learn phasing
+
+**Live today:** standard 10-chart drill (fixed mix), the three scores, end-of-session coaching paragraph + chart-by-chart review, Learn a topic (on-demand), nudges based on detection-rate thresholds, performance data written to Insights, journal bridge.
+
+**Phase 1 additions:** Your Plan (remediation + advancement tracks), Explore a Topic (structured plan generation, gold standard pointers, drill routing), coaching as conversation (replacing the paragraph with a Socratic follow-up exchange), prediction-before-reveal drill mode (real historical data), error-correction drill mode, and the gold standard pointer lookup table (manual curation of 33 patterns).
+
+**Phase 2:** confidence-under-pressure (timed) drill mode; expanded curation — topics beyond the 33-pattern library promoted from Explore into the lookup table; plan personalisation deepens as session volume grows, with advancement thresholds adjusting to individual trader variance rather than fixed percentages.
+
+---
+
 ## Why it's designed this way, in plain terms
 
 There are really two different jobs being done here, and keeping them separate is what makes the mentor trustworthy:
@@ -207,8 +397,8 @@ That separation is the whole difference between "Wick coaches you" and "Wick is 
 
 ## Phasing
 
-- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L), the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning that probes reasoning rather than just checking answers, a fact-anchored challenge/defense loop, trade-plan check, and a coaching-style end-of-session report card), the Journal refinements (stale-trade flag, plan-vs-reality drift detection, journal-wide chat, and the list-management features), and Insights as the diagnostic layer beneath the scoreboard (signal breakdown, behavioral drag, technical accuracy trends, recency flag, and the journal-wide chat) — which depends on the session-title, exit-reason, and report-card-tag fields introduced in Analyse and Journal above.
-- **Phase 2 (detailed below):** a strategy backtesting engine, plus — further out still — a long-term personal trading-pattern profile built from many mentor sessions over time.
+- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L), the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning that probes reasoning rather than just checking answers, a fact-anchored challenge/defense loop, trade-plan check, and a coaching-style end-of-session report card), the Journal refinements (stale-trade flag, plan-vs-reality drift detection, journal-wide chat, and the list-management features), Insights as the diagnostic layer beneath the scoreboard (signal breakdown, behavioral drag, technical accuracy trends, recency flag, and the journal-wide chat), and the Learn additions (Your Plan, Explore a Topic, coaching as conversation, the prediction-before-reveal and error-correction drill modes, and the gold standard pointer lookup table) — see each page's section above, and Learn's own phasing breakdown, for the full detail.
+- **Phase 2 (detailed below):** a strategy backtesting engine, the confidence-under-pressure drill mode and expanded topic curation in Learn, plus — further out still — a long-term personal trading-pattern profile built from many mentor sessions over time.
 
 ---
 
