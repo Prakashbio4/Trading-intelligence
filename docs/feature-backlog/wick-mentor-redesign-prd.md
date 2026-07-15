@@ -79,6 +79,11 @@ That's it. Everything else that used to live on this page (calibration charts, p
 **Catching drift between plan and reality — new:**
 - Journal should notice on its own when what you decided doesn't match what you actually did: you analyzed and the verdict was Skip/Watch, but a trade was entered anyway — or you decided Take, but the real entry price, stop loss, target, or position size ended up far from what the analysis said. Today this comparison isn't made automatically; it would need to run whenever the "what actually happened" fields get filled in, checked against the original decision and levels.
 
+**Failure-cause notes — new:**
+- When you close out an entry, there should be a place to note *why* it played out the way it did — specifically, whether a loss happened because the setup itself was wrong, or because something external hit it: a sudden macro move, a sector-wide shock, a volatility spike that had nothing to do with the quality of your read. This should stay editable after the fact — you often don't know at close time whether it was a genuine shock, and want to update the note once it's clear.
+- The point isn't journaling color, it's data intelligence: this should feed forward so a pattern's performance in Insights doesn't get unfairly blamed for a loss that was actually caused by the environment rather than a flaw in the setup or your read.
+- Worth flagging: there's already a more detailed design for almost exactly this sitting in the backlog (`docs/feature-backlog/journal-phase2.md`, "Macro & Sector Context" feature — marked design-finalized, not yet built) — free-text macro and sector notes captured at the outcome-review moment, with the AI extracting structured tags (`risk_off`, `sector_rotation`, `policy_shock`, etc.) and a sentiment read, feeding exactly this kind of "do your setups hold up in risk-off environments?" view. That design should be merged into this addition rather than rebuilt — it's the same idea, already thought through in more depth.
+
 **A chat over your whole journal, not just one entry:**
 - Beyond the per-session chat, this lets you ask questions across your entire history — e.g. *"how many of my Skip calls this month would've been winners?"* A version of this already exists on the Insights page today (asking questions across all your sessions); this brings the same capability directly into Journal itself.
 
@@ -89,7 +94,7 @@ That's it. Everything else that used to live on this page (calibration charts, p
 
 ### What we already have to build this on
 
-Most of the outcome-tracking backbone already exists: automatic price snapshots after Skip/Watch decisions, automatic scanning for stop-loss/target hits on Take trades (with manual confirm, never a silent auto-close), and a cross-session chat (currently living on Insights). What's actually new here: the 90-day stale flag, the plan-vs-reality drift detector, bringing the cross-session chat into Journal itself, and the list-management features (collapse, multi-delete, after-the-fact editing).
+Most of the outcome-tracking backbone already exists: automatic price snapshots after Skip/Watch decisions, automatic scanning for stop-loss/target hits on Take trades (with manual confirm, never a silent auto-close), and a cross-session chat (currently living on Insights). What's actually new here: the 90-day stale flag, the plan-vs-reality drift detector, the failure-cause notes (with a fuller version of this already designed in the `journal-phase2.md` backlog doc), bringing the cross-session chat into Journal itself, and the list-management features (collapse, multi-delete, after-the-fact editing).
 
 ---
 
@@ -123,6 +128,8 @@ Two flags surface automatically:
 - **Underused winner** — a signal with a strong win rate and P&L but a low trade count, surfacing whether you're avoiding a setup that actually works for you.
 
 Where the data allows, it also shows whether a setup performs differently volume-confirmed vs. not — this falls out naturally from the session title structure, with no extra tagging required.
+
+**Once Journal's failure-cause notes exist (see Journal section above), "Biggest drag" should account for them.** A pattern that lost mostly to tagged macro/sector shocks reads very differently from one that's just genuinely unreliable — Insights should be able to show that split (e.g. *"6 of 8 losses on this signal were tagged as macro-shock, not a setup failure"*) rather than blaming every loss on the setup equally. Without this, the diagnostic can mislead exactly the trader it's meant to help.
 
 ### Section 3 — Behavioral drag
 
