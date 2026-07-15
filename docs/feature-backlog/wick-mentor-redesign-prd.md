@@ -1,4 +1,4 @@
-# Wick Redesign — Dashboard & Analyse (PRD)
+# Wick Redesign — Dashboard, Analyse & Journal (PRD)
 
 **Status:** Draft — for discussion, not yet scoped into build tasks.
 
@@ -64,6 +64,35 @@ That's it. Everything else that used to live on this page (calibration charts, p
 
 ---
 
+## Page 3 — Journal: your trading history, kept honest
+
+**Purpose:** every session you run becomes a permanent record — not just what you decided, but what actually happened — so patterns become visible over months instead of being forgotten. This is the ground-truth memory the Dashboard's win rate and the mentor's long-term profile both depend on.
+
+**What each entry holds:**
+- The full conversation from that session, logged automatically with the date, plus a short summary tag (which strategy this was) so entries are scannable at a glance rather than opaque.
+
+**Outcome tracking — mostly already working today, being extended:**
+- For **Skip/Watch** decisions, the system already checks back at set intervals to see what the price actually did afterward — did you correctly pass on a loser, or miss a winner.
+- For **Take** trades, the system already scans real daily price history since entry, watching for the stop loss or target to actually be hit, and flags that crossing for you to confirm (it never silently auto-closes a trade — you confirm it actually happened, and you can dismiss a false alarm if price merely brushed the level).
+- **New in these notes:** a trade that's gone 90 days without hitting either level gets flagged as **stale**, so it surfaces for a manual review instead of sitting open indefinitely — today it just keeps scanning with no cutoff or flag.
+
+**Catching drift between plan and reality — new:**
+- Journal should notice on its own when what you decided doesn't match what you actually did: you analyzed and the verdict was Skip/Watch, but a trade was entered anyway — or you decided Take, but the real entry price, stop loss, target, or position size ended up far from what the analysis said. Today this comparison isn't made automatically; it would need to run whenever the "what actually happened" fields get filled in, checked against the original decision and levels.
+
+**A chat over your whole journal, not just one entry:**
+- Beyond the per-session chat, this lets you ask questions across your entire history — e.g. *"how many of my Skip calls this month would've been winners?"* A version of this already exists on the Insights page today (asking questions across all your sessions); this brings the same capability directly into Journal itself.
+
+**Smaller features, new:**
+- Once you have 20+ entries, the list collapses to show just the latest 5 by default, so it doesn't become an endless scroll.
+- Delete a single entry, or select several and delete them together.
+- Go back and edit a logged entry after the fact — correct the entry date, price, or status (e.g. update it from what was planned to what you actually traded, or revise the real SL/target if it changed).
+
+### What we already have to build this on
+
+Most of the outcome-tracking backbone already exists: automatic price snapshots after Skip/Watch decisions, automatic scanning for stop-loss/target hits on Take trades (with manual confirm, never a silent auto-close), and a cross-session chat (currently living on Insights). What's actually new here: the 90-day stale flag, the plan-vs-reality drift detector, bringing the cross-session chat into Journal itself, and the list-management features (collapse, multi-delete, after-the-fact editing).
+
+---
+
 ## Why it's designed this way, in plain terms
 
 There are really two different jobs being done here, and keeping them separate is what makes the mentor trustworthy:
@@ -102,7 +131,7 @@ That separation is the whole difference between "Wick coaches you" and "Wick is 
 
 ## Phasing
 
-- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L) and the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning that probes reasoning rather than just checking answers, a fact-anchored challenge/defense loop, trade-plan check, and a coaching-style end-of-session report card).
+- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L), the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning that probes reasoning rather than just checking answers, a fact-anchored challenge/defense loop, trade-plan check, and a coaching-style end-of-session report card), and the Journal refinements (stale-trade flag, plan-vs-reality drift detection, journal-wide chat, and the list-management features).
 - **Phase 2 (detailed below):** a strategy backtesting engine, plus — further out still — a long-term personal trading-pattern profile built from many mentor sessions over time.
 
 ---
