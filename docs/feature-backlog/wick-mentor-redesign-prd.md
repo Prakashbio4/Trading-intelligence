@@ -761,3 +761,57 @@ This isn't a separate tool bolted onto the side — it's a new source of evidenc
 ### Further out still: the personal trading-pattern profile
 
 Beyond both of these, there's a longer-term idea worth keeping on the roadmap: once enough mentor sessions have piled up, Wick could start noticing patterns in *how you personally* trade — not just whether a strategy works, but things like "you tend to enter a day early" or "you do well in trending markets but struggle in sideways ones." That needs a large volume of sessions to say anything reliable, so it's intentionally placed after both Phase 1 and the backtesting engine, not alongside them.
+
+---
+
+## Backlog & Parked Ideas
+
+Running list of ideas discussed but not yet scoped into any page's PRD above — to be revisited once Phase 1 is stable. Unlike the Phase 2 items already detailed in each page's section, these haven't been designed in depth yet; they're parked here so they aren't lost, not committed to as specced work.
+
+### Portfolio Page
+
+**Origin:** *How to Swing Trade* (book) — the chapter on overnight gap trades. Core principle: have a plan before the market opens, not on the fly.
+
+**What it is:** a dedicated page showing only active open trades — live and dummy together — pulled out of Journal onto a single surface with one job: show me what's open and what my plan is for each one.
+
+**The key addition — scenario planning.** An Analyse trade plan defines entry, SL, and target, but not the pre-market scenario plan — what the trader will actually do in specific situations the next morning:
+- Gaps up at open → sell partial / hold with trailing stop / book full profit
+- Gaps down at open → cut immediately / wait and watch / defined pain threshold
+- Opens flat → hold to target / reassess
+
+Prompted as a quick structured input right after the trade is placed — not a long form. The goal is decisions made in advance, not under pressure at market open.
+
+**What it needs (all already exists elsewhere in this document):** open trades from Journal (live + dummy, filtered to active), entry/SL/target from the Analyse trade plan, current price from the Groww data feed, and the scenario plan itself as a new (optional, nudged) input at trade creation.
+
+**Feeds back into Insights:** if the scenario plan says "gap down → cut immediately" but the exit reason tag shows "manual exit — fear" on a gap *up*, that's a plan-vs-reality drift worth surfacing in behavioral drag — the same drift-detection principle already designed into Journal, applied one layer earlier (the pre-market plan, not just the trade plan).
+
+**Phase:** Phase 2 addition — after Journal, Analyse, and Dummy Trade are stable.
+
+### Market Context Layer for Signals (top-down cascade)
+
+**Origin:** *How to Swing Trade* (book) — the chapter on reviewing overall market conditions and sector performance before looking at individual stocks.
+
+**What it is:** a top-down filter cascade professional swing traders run before acting on any individual setup:
+1. Overall market condition — is the market trending? (advance/decline ratio, % above 50/200 SMA, sentiment)
+2. Sector condition — is the sector showing strength over 1 day, 1 week, 1 month?
+3. Individual stock setup — this is where Signals currently operates (see Page 6 above)
+
+**The gap:** Wick Signals today only runs layer 3. A Bullish Harami on TITAN in a weak market with the consumer sector declining is a very different signal from the same pattern with the market advancing and the sector leading — the pattern is identical, the follow-through probability is not.
+
+**Two specific additions when ready:**
+- A market condition banner at the top of Signals — one line, Favourable / Neutral / Caution, derived from the NSE advance/decline ratio, % of Nifty 500 above its 50-day SMA, and Nifty 50 vs. its own moving averages.
+- Sector strength as a quiet secondary ranking input in Job 1 — a setup in a strong sector ranks above the identical setup in a weak sector, no additional UI needed.
+
+**Phase:** Phase 2 — after core Signals (Job 1 + Job 2) is live and validated.
+
+### 3-Day Rule Check in Analyse
+
+**Origin:** *How to Swing Trade* (book), page 244.
+
+**What it is:** if a stock has already moved significantly for 3+ consecutive days, entry risk/reward has deteriorated. Wick can run this check automatically at the end of an Analyse session — a factual check like RSI or volume, not a veto: *"This stock has closed up 4 consecutive days. The 3-day rule suggests entry risk is elevated — is your stop placement accounting for this?"*
+
+**Phase:** Phase 2 addition to the Analyse mentor flow.
+
+---
+
+*Last updated: during the Wick PRD brainstorm session, July 2026.*
