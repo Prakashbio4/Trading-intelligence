@@ -1,4 +1,4 @@
-# Wick Redesign — Dashboard, Analyse, Journal, Insights, Learn & Signals (PRD)
+# Wick Redesign — Dashboard, Analyse, Journal, Insights, Learn, Signals & Dummy Trade Execution (PRD)
 
 **Status:** Draft — for discussion, not yet scoped into build tasks.
 
@@ -522,6 +522,164 @@ Signals is the output layer of the whole system — every other module feeds int
 
 ---
 
+## Page 7 — Dummy Trade Execution: the missing middle ground
+
+### What a dummy trade is — and what it is not
+
+A dummy trade in Wick is **not** a paper trade. Paper trading on most platforms means a fake account, fake prices, fake execution, and a fake portfolio that bears no relationship to what would actually have happened in the real market — it builds confidence that doesn't transfer to live trading, because the conditions were never real.
+
+A dummy trade in Wick is different in every material respect:
+- It executes at real NSE market prices — the actual opening price on the next trading day after the trade is placed.
+- It tracks against real daily price movement, from the same Groww market data subscription already in the app.
+- It produces a real rupee P&L — what the trader would have made or lost had real capital been deployed.
+- It uses the exact same outcome detection logic that already tracks live trades in Journal — no separate system, no separate rules.
+
+The only thing that isn't real is capital at risk. A dummy trade answers a precise question: *if I had placed this trade exactly as I planned it, on real prices, what would have happened?* That question has a real answer, and Wick computes it.
+
+**What makes it honest:** entry fills at next-day open — never at the analysis-time price, never at the day's low, never at any price the trader could cherry-pick in hindsight. Stop loss and target are locked at the levels defined in the Analyse trade plan and cannot be moved after creation. The system only ever uses price data that would have been available after the trade was placed — no lookahead. There's no broker call and no external order sent anywhere — everything runs inside Wick on the existing Groww OHLC feed.
+
+### Where dummy trades fit in the Wick flow
+
+This fills a real gap between Analyse and Journal. Today, a trader who completes an Analyse session and gets a validated trade plan has exactly two options: trade it live, or do nothing with it. There's no middle ground for someone who wants to test their read without deploying capital — on a new pattern, during a drawdown, or simply because they're not confident enough yet to go live.
+
+```
+Signals surfaces a candidate stock
+         ↓
+Analyse — full mentor session runs
+  → trade plan defined: entry level, SL, target, position size
+  → Wick validates the plan against real chart data
+         ↓
+End of Analyse session — trader chooses:
+         ↓                          ↓                    ↓
+ [Place dummy trade]        [Log as live trade]        [Skip]
+         ↓                          ↓
+ Dummy trade created         Live trade created
+ in Journal                  in Journal
+ Tagged: DUMMY               Tagged: LIVE
+         ↓                          ↓
+ Both tracked identically against real daily price data
+ Both use same outcome detection: SL hit / target hit / stale
+ Both produce real rupee P&L
+ Segmented in Insights — never conflated
+```
+
+The choice is made once, at the end of Analyse. There's no separate dummy trade interface, no separate portfolio screen, no separate entry point — **a dummy trade is a Journal entry with a different tag.** The entire product surface already built for live trades handles it, with the tag as the only distinction.
+
+### Who this is for
+
+- **A new trader building confidence on a pattern** — drilled it in Learn, seeing it in Signals, not ready to trade it live. They run Analyse, get the mentor's validation, place a dummy trade. Over 4–6 weeks they accumulate real outcome data on their real reads at real prices. When the dummy win rate is consistent and they understand why the losses happened, going live is an informed decision — confidence from actual outcome data, not a fake portfolio.
+- **An experienced trader testing a new setup** — already trades their core patterns live, wants to add an adjacent pattern from Signals' horizon suggestions. Rather than deploying capital immediately on an unfamiliar setup, they run dummy trades on it for a defined period. The transition to live is evidence-based, not impulsive.
+- **A trader in drawdown** — live P&L has deteriorated, stepping back to diagnose what went wrong. Dummy trades keep them in the market rhythm — running Analyse, placing trades, tracking outcomes — without the financial and psychological cost of losing more real money while rebuilding read quality.
+
+**What dummy trades are *not* for:**
+- Indefinite avoidance of live trading. A nudge after 20+ consecutive dummy trades on a well-performing pattern should prompt: *"Your dummy win rate on this setup is 65% across 20 trades — have you considered going live?"*
+- Inflating metrics. Dummy trades are always segmented from live trades and never touch the headline win rate or weighted P&L on Dashboard.
+- Replacing Analyse. A dummy trade cannot be placed without a completed Analyse session — the mentor validation step isn't optional. Dummy trades without analysis are guesses, not learning.
+
+### Execution mechanics — how a dummy trade runs
+
+**Step 1 — Trade plan from Analyse.** At the end of any Analyse session that reaches a Take verdict, the trade plan already exists: stock, entry level, stop loss, target, position size, direction. These fields already exist as part of Analyse's trade plan step — dummy trade creation just pulls them directly, no extra input required.
+
+**Step 2 — Entry price determination.** When the trader selects "Place dummy trade," the system records placement time and date, and sets the entry price to the *next trading day's opening price* from the Groww OHLC feed. Example: a trader completes an Analyse session on TITAN Tuesday evening and places a dummy trade — the entry price is TITAN's Wednesday open, the same fill a real market order placed Tuesday close would have gotten. The trader can't enter at the analysis-time price, can't pick a favourable intraday price, and can't backdate the entry. This is the critical honesty mechanism.
+
+**Step 3 — Trade monitoring.** The same background job that already tracks live trades in Journal monitors dummy trades too. Each day, after the OHLC feed updates: did the daily low breach stop loss (SL hit)? Did the daily high reach target (target hit)? Has it been open 90 days with no resolution (stale flag)? If both SL and target are breached the same day (the day's range spans both), the system assumes **SL hit first** — the conservative, worst-case-honest assumption, same as a real order would face.
+
+**Step 4 — Exit and outcome logging.** When an outcome is detected, the dummy trade closes automatically and the Journal entry updates with exit price, exit date, outcome (Win/Loss/Stale), P&L in rupees, P&L in R (multiple of risk taken), and exit reason (Stop hit / Target hit / Stale / Manual close). The trader gets a notification and confirms the outcome (or flags a false alarm if price merely brushed the level) — the same confirmation flow already used for live trades.
+
+**Step 5 — Manual close.** A trader can close a dummy trade manually at any point, selecting an exit reason from the same set used for live trades (conviction flip, fear/discomfort, time-based exit). Manual closes on dummy trades feed Insights' behavioral drag section exactly like live trades do — cutting trades early is the same behavioral pattern whether or not real money was on the line, so it's tracked identically.
+
+### How dummy trades appear in Journal
+
+A dummy trade creates a Journal entry structurally identical to a live one — same fields, same outcome tracking, same exit reason tag, same post-trade review. The only visual distinction is a clear **DUMMY** label on the entry card, shown consistently wherever the entry appears.
+
+**Filtering:** the Journal list gets a filter — all entries, live only, or dummy only. Default view shows everything; dummy entries are visually distinct but never hidden by default. The trader's full record, real and dummy, is their history.
+
+**Editing:** dummy trades follow the same edit/delete rules as live trades — correct the date, price, or status after the fact, delete individual entries. What *cannot* change after creation: stop loss, target, and direction (locked at creation), and entry price (set by the system, never manually overridden).
+
+### How dummy trades appear in Insights
+
+**The foundational rule: dummy trades never affect the headline scoreboard.** Win Rate and Weighted Average P&L on Dashboard reflect live trades only. A trader with 50 dummy trades and 10 live trades has a win rate based on 10 trades, not 60 — the dummy record is valuable data, but it is never presented as live performance.
+
+**A dedicated dummy-performance panel**, separate from the main signal breakdown, shows dummy vs. live side by side per pattern:
+
+| Pattern | Dummy trades | Dummy win % | Dummy avg P&L | Live trades | Live win % | Live avg P&L |
+|---|---|---|---|---|---|---|
+| Bullish Harami | 14 | 64% | +0.9R | 8 | 62% | +0.8R |
+| Morning Star | 6 | 50% | +0.3R | 0 | — | — |
+| Bearish Engulfing | 8 | 37% | −0.9R | 2 | 50% | +0.4R |
+
+This side-by-side view is deliberately the most informative format available, because it surfaces two distinct diagnostics:
+- **Transfer gap** — patterns where dummy performance is strong but live performance is weak. This is the single most important signal: the trader can read the setup in a low-stakes context, but something breaks under live conditions — behavioral drag, sizing pressure, or emotional exits are the usual culprits.
+- **Live-ready signal** — patterns where dummy win rate is consistently above the trader's baseline across 10+ trades — the evidence basis for a "consider going live on this" nudge.
+
+**The live-ready nudge:** when dummy win rate on a pattern crosses a meaningful threshold (suggested: 60%+ across 15+ trades, no deterioration in the last 5), Insights surfaces: *"Your dummy Bullish Harami win rate is 67% across 18 trades. Your read on this setup is consistent. Have you considered placing your next Harami trade live?"* A suggestion, not a directive — dismissible, and it won't repeat for that pattern until the dummy record meaningfully updates.
+
+### How dummy trades connect to Learn and Signals
+
+**Learn:** the journal bridge — which already checks whether patterns drilled well in Learn show up correctly in real Journal decisions — extends to include dummy trades, producing a three-stage trajectory:
+
+```
+Learn drill: Bullish Harami detection rate → 74%
+         ↓
+Dummy trades: Bullish Harami win rate → 64% (18 trades)
+         ↓
+Live trades: Bullish Harami win rate → 61% (8 trades)
+```
+
+This is the most complete picture of skill development Wick can produce. Strong in drills but weak in dummy trades means the perceptual skill is there but contextual reading breaks down on real charts. Strong in dummy trades but weak live means the read is fine and execution psychology is the actual problem. Where the numbers diverge between stages is exactly where coaching should focus.
+
+**Signals:** the skill gate today uses Learn detection rate as its only filter for Job 1. Dummy trade outcomes are a richer signal — they reflect read quality on real charts, not synthetic ones. In this phase, the skill gate stays Learn-detection-only; in Phase 2, dummy trade win rate becomes a secondary input — a pattern with strong Learn detection but poor dummy outcomes could be downweighted in Signals, with the reason surfaced to the trader. The most honest version of a skill gate is one that uses all available evidence, not just drill performance.
+
+### What dummy trade execution does NOT do
+
+- Call any broker API or send an order anywhere outside Wick — everything runs on the existing Groww OHLC feed.
+- Simulate intraday price movement. Only daily OHLC is used, so an intraday stop-out within a single day's range is detected at day close, not intraday — a known, stated limitation.
+- Allow entry price manipulation. Fill is always next-day open, never a different price the trader selects.
+- Allow SL or target to be moved after entry. The plan is locked at creation — adjusting levels afterward would defeat the point of honest outcome tracking.
+- Count dummy P&L toward the Dashboard scoreboard. Live and dummy performance are always segmented.
+- Allow a dummy trade without a completed Analyse session. Mentor validation is a prerequisite, not optional.
+- Enable short selling in this phase — long trades only, consistent with the daily-chart focus of Journal and Analyse. Short dummy trades are a Phase 2 consideration.
+
+### What this depends on
+
+Designed to require **no new infrastructure** — every dependency is already live or already designed elsewhere in this document.
+
+| Requirement | Source | Status | Notes |
+|---|---|---|---|
+| Daily OHLC price data (NSE) | Groww market data subscription | Live today | Already used in Analyse, Signals, Learn |
+| Trade plan fields from Analyse | Analyse session output | Live today | Entry, SL, target, position size already captured |
+| Outcome detection scan (daily) | Journal background job | Live today | Already runs for live trades — dummy trades join the same scan |
+| Journal entry structure | Journal | Live today | Dummy tag added; every other field identical to a live entry |
+| Exit reason tag | Journal close flow | Designed — see Journal section above | Required field for both live and dummy trades |
+| Signal breakdown per pattern | Insights | Designed — see Insights section above | Dummy panel sits alongside the existing breakdown |
+| Learn journal bridge | Learn module | Live today | Extended to include dummy trade outcomes in the trajectory view |
+| Skill gate input (Phase 2) | Signals + dummy trade outcomes | Phase 2 | Dummy win rate as a secondary skill-gate input |
+
+### Known limitations, stated upfront
+
+- **Intraday stop-outs aren't detected.** If a stock gaps through the stop loss intraday and recovers by close, the dummy trade won't be stopped out — a real trade with a broker stop order would have been. This overstates dummy performance in volatile conditions, and it's noted on every dummy trade entry, not buried.
+- **Gaps at open aren't handled specially.** If a stock opens well above or below the planned entry, the dummy trade fills at the actual open regardless of distance from plan — the honest behavior, since a real market order would have filled there too.
+- **Dividends and corporate actions aren't adjusted** in this phase. A split or bonus issue during an open dummy trade will distort the P&L — the same data-quality issue already flagged in the Signals and backtesting sections.
+- **Long trades only** — short dummy trades need additional direction-reversal logic and are deferred.
+- **No partial exits** — a dummy trade closes in full at SL, target, or manual exit.
+
+### What success looks like
+
+- A trader not ready to go live on a new pattern can build a real track record on it — real prices, real outcomes, real rupee P&L — before deploying capital.
+- The transfer gap between dummy and live performance becomes a visible diagnostic in Insights — the most honest picture available of where execution psychology is breaking down.
+- The live-ready nudge gives an evidence-based signal for when to transition a pattern from dummy to live — evidence, not just confidence.
+- A trader in drawdown stays in the learning loop without the financial and psychological cost of live losses during a bad stretch.
+- No trader ever confuses their dummy win rate with their live trading performance — the segmentation is clear, consistent, and never softened.
+- The entire feature runs on infrastructure already in the system — no new data feeds, no broker integrations, no external APIs.
+
+### Dummy trade phasing
+
+**Phase 1:** one-tap dummy trade creation from a validated Analyse trade plan; entry at next-day open from Groww OHLC; SL/target locked at creation; same outcome detection scan as live trades (SL hit, target hit, 90-day stale flag); Journal entry with DUMMY tag; Journal filter (all/live/dummy); manual close with exit reason; dummy performance panel in Insights, segmented from the live scoreboard; the transfer-gap diagnostic; the live-ready nudge; Learn's journal bridge extended to dummy outcomes; long trades only; the intraday stop-out limitation stated clearly on every entry.
+
+**Phase 2:** short dummy trades; dummy win rate as a secondary input to the Signals skill gate; partial-exit simulation; corporate-action adjustment for open dummy trades; upgrading stop detection to intraday resolution, if intraday data is acquired for other features.
+
+---
+
 ## Why it's designed this way, in plain terms
 
 There are really two different jobs being done here, and keeping them separate is what makes the mentor trustworthy:
@@ -560,8 +718,8 @@ That separation is the whole difference between "Wick coaches you" and "Wick is 
 
 ## Phasing
 
-- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L), the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning that probes reasoning rather than just checking answers, a fact-anchored challenge/defense loop, trade-plan check, and a coaching-style end-of-session report card), the Journal refinements (stale-trade flag, plan-vs-reality drift detection, failure-cause notes, journal-wide chat, and the list-management features), Insights as the diagnostic layer beneath the scoreboard (signal breakdown, behavioral drag, technical accuracy trends, recency flag, and the journal-wide chat), the Learn additions (Your Plan, Explore a Topic, coaching as conversation, the prediction-before-reveal and error-correction drill modes, and the gold standard pointer lookup table), and Signals rebuilt around personal edge (the three-layer filter — pattern match, skill gate, edge ranking — plus the horizon-expansion suggestions feeding into Learn) — see each page's section above, and Learn's and Signals' own phasing breakdowns, for the full detail.
-- **Phase 2 (detailed below):** a strategy backtesting engine, the confidence-under-pressure drill mode and expanded topic curation in Learn, intraday scanning and volume-based ranking in Signals, plus — further out still — a long-term personal trading-pattern profile built from many mentor sessions over time.
+- **Phase 1 (detailed above):** Dashboard scoreboard (win rate + weighted avg P&L), the new Analyse flow (live chart, one-line strategy intake, adaptive fact-grounded questioning that probes reasoning rather than just checking answers, a fact-anchored challenge/defense loop, trade-plan check, and a coaching-style end-of-session report card), the Journal refinements (stale-trade flag, plan-vs-reality drift detection, failure-cause notes, journal-wide chat, and the list-management features), Insights as the diagnostic layer beneath the scoreboard (signal breakdown, behavioral drag, technical accuracy trends, recency flag, and the journal-wide chat), the Learn additions (Your Plan, Explore a Topic, coaching as conversation, the prediction-before-reveal and error-correction drill modes, and the gold standard pointer lookup table), Signals rebuilt around personal edge (the three-layer filter — pattern match, skill gate, edge ranking — plus the horizon-expansion suggestions feeding into Learn), and Dummy Trade Execution as the middle ground between Analyse and a live trade (real-price, real-P&L paper trading segmented from the live scoreboard, with the transfer-gap diagnostic in Insights and the live-ready nudge) — see each page's section above, and Learn's, Signals', and Dummy Trade's own phasing breakdowns, for the full detail.
+- **Phase 2 (detailed below):** a strategy backtesting engine, the confidence-under-pressure drill mode and expanded topic curation in Learn, intraday scanning and volume-based ranking in Signals, short/partial-exit dummy trades and dummy-informed skill gating, plus — further out still — a long-term personal trading-pattern profile built from many mentor sessions over time.
 
 ---
 
