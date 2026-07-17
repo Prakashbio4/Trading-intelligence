@@ -312,7 +312,9 @@ export default function Analyse() {
         {/* ── Live Chart ───────────────────────────────────────────────── */}
         <section className="card">
           <div className="section-label">Live Chart</div>
-          <TradingViewChart symbol={form.ticker} />
+          <ErrorBoundary resetLabel="Reload chart">
+            <TradingViewChart symbol={form.ticker} />
+          </ErrorBoundary>
         </section>
 
         {/* ── Trend Read ───────────────────────────────────────────────── */}
