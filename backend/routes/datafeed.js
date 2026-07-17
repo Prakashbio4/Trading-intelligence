@@ -5,8 +5,8 @@ const router = express.Router();
 const supabase = require('../lib/supabase');
 const { searchNseSymbols } = require('../lib/growwInstruments');
 
-// UDF-compatible datafeed for the TradingView Advanced Charts widget on the
-// Chart page. Public/unauthenticated — it only ever serves NSE OHLC, the same
+// UDF-compatible datafeed for the TradingView Advanced Charts widget embedded
+// in Analyse. Public/unauthenticated — it only ever serves NSE OHLC, the same
 // data already reachable via /universe, and the UDF adapter bundle doesn't
 // support attaching an Authorization header.
 // Spec: https://www.tradingview.com/charting-library-docs/latest/connecting_data/UDF
@@ -53,17 +53,13 @@ router.get('/search', async (req, res) => {
 });
 
 // GET /datafeed/udf/symbols?symbol=
-router.get('/symbols', async (req, res) => {
+// Resolves any well-formed symbol, not just ones already in stock_universe —
+// Analyse needs to chart stocks a trader hasn't tracked yet. /history simply
+// returns no_data for symbols with nothing fetched, which the widget handles
+// gracefully (empty chart, no error), so there's nothing to gate here.
+router.get('/symbols', (req, res) => {
   const symbol = (req.query.symbol || '').toUpperCase();
   if (!symbol) return res.status(400).json({ s: 'error', errmsg: 'symbol is required' });
-
-  const { data, error } = await supabase
-    .from('stock_universe')
-    .select('symbol')
-    .eq('symbol', symbol)
-    .single();
-
-  if (error || !data) return res.status(404).json({ s: 'error', errmsg: 'unknown_symbol' });
 
   res.json({
     ticker: symbol,
