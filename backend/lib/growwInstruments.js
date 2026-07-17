@@ -21,7 +21,12 @@ async function loadNseEquityRows() {
     const csv = await res.text();
     const { data } = Papa.parse(csv, { header: true, skipEmptyLines: true });
 
-    const rows = data.filter(row => row.exchange === 'NSE' && row.instrument_type === 'EQ');
+    // instrument_type === 'EQ' alone isn't enough — Groww's master tags NCD/
+    // bond instruments (e.g. "Sammaan Capital Mar'35", series N1/N0) with
+    // instrument_type 'EQ' too. `series === 'EQ'` is what actually
+    // distinguishes a real tradable stock (confirmed against real data:
+    // RELIANCE has series 'EQ', the bond rows have 'N1'/'N0').
+    const rows = data.filter(row => row.exchange === 'NSE' && row.instrument_type === 'EQ' && row.series === 'EQ');
     _cache = { rows, fetchedAt: Date.now() };
     return rows;
   })();
