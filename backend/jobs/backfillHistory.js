@@ -120,4 +120,4 @@ async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false 
   return recentResult;
 }
 
-module.exports = { backfillSymbol };
+module.exports = { backfillSymbol, fetchAndStoreRange, alreadyBackfilled };

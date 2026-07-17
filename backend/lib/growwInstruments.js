@@ -84,4 +84,12 @@ async function isValidNseSymbol(symbol) {
   return rows.some(r => (r.trading_symbol || '').toUpperCase() === needle);
 }
 
-module.exports = { findNseSymbolCandidates, searchNseSymbols, isValidNseSymbol };
+// Every NSE cash-equity trading symbol Groww knows about — the target list
+// for the chart-cache pre-warm job. Same cache as everything else here, so
+// this costs nothing beyond what's already fetched daily.
+async function loadAllNseEquitySymbols() {
+  const rows = await loadNseEquityRows();
+  return [...new Set(rows.map(r => r.trading_symbol).filter(Boolean))];
+}
+
+module.exports = { findNseSymbolCandidates, searchNseSymbols, isValidNseSymbol, loadAllNseEquitySymbols };
