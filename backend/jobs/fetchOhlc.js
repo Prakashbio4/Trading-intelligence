@@ -164,4 +164,4 @@ async function runFetchOhlc() {
   return results;
 }
 
-module.exports = { runFetchOhlc, processSymbol };
+module.exports = { runFetchOhlc, processSymbol, enrichWithVolAvg };
