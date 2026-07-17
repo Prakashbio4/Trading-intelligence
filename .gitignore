@@ -7,10 +7,6 @@
 codebase.txt
 structure.txt
 
-# TradingView Advanced Charts — not redistributable, must be copied in
-# locally (see frontend/public/charting_library/README.txt)
-frontend/public/charting_library/*
-frontend/public/datafeeds/*
-!frontend/public/charting_library/.gitkeep
-!frontend/public/charting_library/README.txt
-!frontend/public/datafeeds/.gitkeep
+# TradingView Advanced Charts lives at frontend/public/tradingview/ as a git
+# submodule (see README.md) — nothing to ignore here, git tracks submodule
+# content as a commit reference, not as regular files.

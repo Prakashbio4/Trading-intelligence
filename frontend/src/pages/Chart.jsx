@@ -34,14 +34,14 @@ export default function Chart() {
   const widgetRef = useRef(null);
   const activeSymbolRef = useRef('');
 
-  // Load the TradingView library scripts — dropped in manually by the user
-  // under frontend/public/, since they're TradingView-licensed and not
-  // redistributable via git.
+  // Load the TradingView library scripts from the tradingview/charting_library
+  // git submodule at frontend/public/tradingview/ (one level below public/ root
+  // so the submodule's own index.html etc. don't collide with the app's build).
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      loadScript('/charting_library/charting_library.standalone.js'),
-      loadScript('/datafeeds/udf/dist/bundle.js'),
+      loadScript('/tradingview/charting_library/charting_library.standalone.js'),
+      loadScript('/tradingview/datafeeds/udf/dist/bundle.js'),
     ])
       .then(() => { if (!cancelled) setLibrariesReady(true); })
       .catch(err => { if (!cancelled) setLibraryError(err.message); });
@@ -82,7 +82,7 @@ export default function Chart() {
       interval: 'D',
       container: containerRef.current,
       datafeed,
-      library_path: '/charting_library/',
+      library_path: '/tradingview/charting_library/',
       locale: 'en',
       theme: 'dark',
       autosize: true,
@@ -137,8 +137,8 @@ export default function Chart() {
         <div className={styles.notice}>
           <p>TradingView library not found.</p>
           <p className={styles.noticeHint}>
-            Copy your <code>charting_library/</code> and <code>datafeeds/</code> folders into{' '}
-            <code>frontend/public/</code>, then hard-refresh.
+            Run <code>git submodule update --init</code> to fetch the{' '}
+            <code>frontend/public/tradingview</code> submodule, then hard-refresh.
           </p>
         </div>
       ) : (
