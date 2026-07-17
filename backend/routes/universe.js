@@ -172,16 +172,20 @@ router.get('/:symbol/window', async (req, res) => {
   res.json(tagged);
 });
 
-// POST /universe/:symbol/backfill — kick off a deep history backfill (full
-// years, not the nightly job's ~20-day window) for a symbol just typed into
-// Analyse's live chart. Fire-and-forget: responds immediately, backfillSymbol
-// itself skips the work if this symbol already has deep history stored.
-router.post('/:symbol/backfill', (req, res) => {
+// POST /universe/:symbol/backfill — deep history backfill (full years, not
+// the nightly job's ~20-day window) for a symbol just typed into Analyse's
+// live chart. Awaits completion (can take up to ~30s for a brand-new symbol,
+// chunked across several Groww calls) so the caller has a real signal for
+// when to refresh the chart — backfillSymbol itself skips the work entirely
+// if this symbol already has deep history stored, so repeat calls are cheap.
+router.post('/:symbol/backfill', async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
-  res.json({ started: symbol });
-  backfillSymbol(symbol).catch(err =>
-    console.error(`[universe] Backfill failed for ${symbol}:`, err.message)
-  );
+  try {
+    const result = await backfillSymbol(symbol);
+    res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
 });
 
 // GET /universe/:symbol/ohlc — get stored OHLC + patterns for a symbol

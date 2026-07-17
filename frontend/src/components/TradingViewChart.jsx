@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { backfillSymbolHistory } from '../api/index.js';
 import styles from './TradingViewChart.module.css';
 
@@ -43,10 +43,33 @@ export default function TradingViewChart({ symbol }) {
   const widgetRef = useRef(null);
   const activeSymbolRef = useRef('');
   const debounceRef = useRef(null);
-  const backfillDebounceRef = useRef(null);
-  const backfillTriggeredRef = useRef(new Set());
+  const backfilledRef = useRef(new Set());
 
   const trimmedSymbol = (symbol || '').trim().toUpperCase();
+
+  // Kick off (or skip, if already done) a deep history backfill for a symbol
+  // that just settled as the chart's active symbol, then — once it actually
+  // lands new data — force a re-fetch of bars so it shows up without a
+  // manual reload. Only called from the same settle-point as setSymbol
+  // (widget creation + the debounced symbol-switch below), never on raw
+  // keystrokes, so a partial string typed mid-word never triggers this.
+  const backfillAndRefresh = useCallback((sym) => {
+    if (backfilledRef.current.has(sym)) return;
+    backfilledRef.current.add(sym);
+
+    backfillSymbolHistory(sym)
+      .then(result => {
+        if (result?.skipped) return; // already had full history — nothing changed
+        if (activeSymbolRef.current !== sym) return; // user's since moved to another symbol
+        const widget = widgetRef.current;
+        if (!widget) return;
+        widget.chartReady().then(() => widget.activeChart().setSymbol(sym));
+      })
+      .catch(() => {
+        // Best-effort — the chart still works off whatever history already
+        // exists even if this call fails (e.g. Groww auth is down).
+      });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,6 +102,7 @@ export default function TradingViewChart({ symbol }) {
     });
     widgetRef.current = widget;
     widget.chartReady().then(() => addDefaultStudies(widget));
+    backfillAndRefresh(trimmedSymbol);
 
     return () => {
       if (widgetRef.current && typeof widgetRef.current.remove === 'function') {
@@ -86,7 +110,7 @@ export default function TradingViewChart({ symbol }) {
       }
       widgetRef.current = null;
     };
-  }, [librariesReady, trimmedSymbol]);
+  }, [librariesReady, trimmedSymbol, backfillAndRefresh]);
 
   // Switch symbol in-place on prop change, debounced so a symbol still being
   // typed doesn't repeatedly resolve partial/invalid tickers.
@@ -101,32 +125,11 @@ export default function TradingViewChart({ symbol }) {
       widget.chartReady().then(() => {
         widget.activeChart().setSymbol(trimmedSymbol);
       });
+      backfillAndRefresh(trimmedSymbol);
     }, SYMBOL_DEBOUNCE_MS);
 
     return () => clearTimeout(debounceRef.current);
-  }, [trimmedSymbol]);
-
-  // Kick off a deep history backfill for every symbol typed here, so its
-  // full available history is there next time it's charted — independent of
-  // widget creation/switching, and independent of whether the analysis is
-  // ever submitted. Debounced, and only fired once per distinct symbol per
-  // component lifetime; the backend itself skips the work if this symbol
-  // already has deep history stored, so re-typing an already-backfilled
-  // symbol is a cheap no-op rather than a re-fetch.
-  useEffect(() => {
-    if (trimmedSymbol.length < 2 || backfillTriggeredRef.current.has(trimmedSymbol)) return;
-
-    clearTimeout(backfillDebounceRef.current);
-    backfillDebounceRef.current = setTimeout(() => {
-      backfillTriggeredRef.current.add(trimmedSymbol);
-      backfillSymbolHistory(trimmedSymbol).catch(() => {
-        // Best-effort — the chart still works off whatever history already
-        // exists even if this call fails (e.g. Groww auth is down).
-      });
-    }, SYMBOL_DEBOUNCE_MS);
-
-    return () => clearTimeout(backfillDebounceRef.current);
-  }, [trimmedSymbol]);
+  }, [trimmedSymbol, backfillAndRefresh]);
 
   if (libraryError) {
     return (
