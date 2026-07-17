@@ -19,7 +19,27 @@ function addDays(dateStr, days) {
   return d.toISOString().split('T')[0];
 }
 
-async function backfillSymbol(symbol, sinceDate = '2020-01-01') {
+// True if the symbol's earliest stored row is already at or before sinceDate
+// — i.e. nothing new to fetch. Lets callers (like "backfill on symbol typed
+// in Analyse") re-trigger freely without re-hitting Groww every time.
+async function alreadyBackfilled(symbol, sinceDate) {
+  const { data, error } = await supabase
+    .from('ohlc_records')
+    .select('date')
+    .eq('symbol', symbol)
+    .order('date', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to check existing history for ${symbol}: ${error.message}`);
+  return !!data && data.date <= sinceDate;
+}
+
+async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false } = {}) {
+  if (!force && await alreadyBackfilled(symbol, sinceDate)) {
+    console.log(`[backfill] ${symbol}: already has history back to ${sinceDate} or earlier, skipping`);
+    return { symbol, candles: 0, skipped: true };
+  }
+
   const today = new Date().toISOString().split('T')[0];
   let cursor = sinceDate;
   const allCandles = [];

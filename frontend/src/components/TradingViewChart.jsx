@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { backfillSymbolHistory } from '../api/index.js';
 import styles from './TradingViewChart.module.css';
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001';
@@ -42,6 +43,8 @@ export default function TradingViewChart({ symbol }) {
   const widgetRef = useRef(null);
   const activeSymbolRef = useRef('');
   const debounceRef = useRef(null);
+  const backfillDebounceRef = useRef(null);
+  const backfillTriggeredRef = useRef(new Set());
 
   const trimmedSymbol = (symbol || '').trim().toUpperCase();
 
@@ -101,6 +104,28 @@ export default function TradingViewChart({ symbol }) {
     }, SYMBOL_DEBOUNCE_MS);
 
     return () => clearTimeout(debounceRef.current);
+  }, [trimmedSymbol]);
+
+  // Kick off a deep history backfill for every symbol typed here, so its
+  // full available history is there next time it's charted — independent of
+  // widget creation/switching, and independent of whether the analysis is
+  // ever submitted. Debounced, and only fired once per distinct symbol per
+  // component lifetime; the backend itself skips the work if this symbol
+  // already has deep history stored, so re-typing an already-backfilled
+  // symbol is a cheap no-op rather than a re-fetch.
+  useEffect(() => {
+    if (trimmedSymbol.length < 2 || backfillTriggeredRef.current.has(trimmedSymbol)) return;
+
+    clearTimeout(backfillDebounceRef.current);
+    backfillDebounceRef.current = setTimeout(() => {
+      backfillTriggeredRef.current.add(trimmedSymbol);
+      backfillSymbolHistory(trimmedSymbol).catch(() => {
+        // Best-effort — the chart still works off whatever history already
+        // exists even if this call fails (e.g. Groww auth is down).
+      });
+    }, SYMBOL_DEBOUNCE_MS);
+
+    return () => clearTimeout(backfillDebounceRef.current);
   }, [trimmedSymbol]);
 
   if (libraryError) {

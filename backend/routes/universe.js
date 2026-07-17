@@ -4,6 +4,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const { processSymbol } = require('../jobs/fetchOhlc');
+const { backfillSymbol } = require('../jobs/backfillHistory');
 const { searchNseSymbols } = require('../lib/growwInstruments');
 const authMiddleware = require('../middleware/auth');
 
@@ -169,6 +170,18 @@ router.get('/:symbol/window', async (req, res) => {
   });
 
   res.json(tagged);
+});
+
+// POST /universe/:symbol/backfill — kick off a deep history backfill (full
+// years, not the nightly job's ~20-day window) for a symbol just typed into
+// Analyse's live chart. Fire-and-forget: responds immediately, backfillSymbol
+// itself skips the work if this symbol already has deep history stored.
+router.post('/:symbol/backfill', (req, res) => {
+  const symbol = req.params.symbol.toUpperCase();
+  res.json({ started: symbol });
+  backfillSymbol(symbol).catch(err =>
+    console.error(`[universe] Backfill failed for ${symbol}:`, err.message)
+  );
 });
 
 // GET /universe/:symbol/ohlc — get stored OHLC + patterns for a symbol
