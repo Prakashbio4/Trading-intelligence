@@ -6,6 +6,7 @@ const TABS = [
   { id: 'learn',    label: 'Learn' },
   { id: 'insights', label: 'Insights' },
   { id: 'signals',  label: 'Signals' },
+  { id: 'chart',    label: 'Chart' },
 ];
 
 export default function Nav({ active, onNavigate, user, onLogout }) {

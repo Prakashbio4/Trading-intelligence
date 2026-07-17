@@ -9,6 +9,7 @@ const journalRouter   = require('./routes/journal');
 const authRouter      = require('./routes/auth');
 const universeRouter  = require('./routes/universe');
 const learnRouter     = require('./routes/learn');
+const datafeedRouter  = require('./routes/datafeed');
 const { runFetchOhlc } = require('./jobs/fetchOhlc');
 const { runPopulateOutcomes } = require('./jobs/populateOutcomes');
 const { runLearnNudges } = require('./jobs/learnNudges');
@@ -37,6 +38,7 @@ app.use('/analyze',  analyzeRouter);
 app.use('/journal',  journalRouter);
 app.use('/universe', universeRouter);
 app.use('/learn',    learnRouter);
+app.use('/datafeed/udf', datafeedRouter);
 
 app.get('/health', (_req, res) =>
   res.json({ status: 'ok', timestamp: new Date().toISOString() })

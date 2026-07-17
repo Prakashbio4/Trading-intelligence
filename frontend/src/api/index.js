@@ -136,6 +136,11 @@ export async function searchSymbols(query) {
   return handleResponse(res);
 }
 
+export async function getUniverse() {
+  const res = await fetch(`${BASE}/universe`, { headers: authHeaders() });
+  return handleResponse(res);
+}
+
 export async function getInsightsContext() {
   const res = await fetch(`${BASE}/journal/insights-context`, { headers: authHeaders() });
   return handleResponse(res);
