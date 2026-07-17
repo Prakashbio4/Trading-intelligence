@@ -5,7 +5,7 @@ const router = express.Router();
 const supabase = require('../lib/supabase');
 const { processSymbol } = require('../jobs/fetchOhlc');
 const { backfillSymbol } = require('../jobs/backfillHistory');
-const { searchNseSymbols } = require('../lib/growwInstruments');
+const { searchNseSymbols, isValidNseSymbol } = require('../lib/growwInstruments');
 const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
@@ -181,6 +181,13 @@ router.get('/:symbol/window', async (req, res) => {
 router.post('/:symbol/backfill', async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
   try {
+    // Gate on a real, complete NSE symbol first — cheap (cached instrument
+    // master, no network call), and stops a partial string caught mid-typing
+    // ("SB", "SBC" while the user is still typing "SBCL") from ever reaching
+    // Groww's historical API at all.
+    if (!(await isValidNseSymbol(symbol))) {
+      return res.json({ symbol, candles: 0, skipped: true, reason: 'not_a_known_symbol' });
+    }
     const result = await backfillSymbol(symbol);
     res.json(result);
   } catch (err) {

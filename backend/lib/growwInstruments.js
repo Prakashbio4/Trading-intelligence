@@ -73,4 +73,15 @@ async function searchNseSymbols(query, limit = 8) {
   return rankMatches(needle, rows, limit);
 }
 
-module.exports = { findNseSymbolCandidates, searchNseSymbols };
+// Exact-match check against the same cached instrument master — used to
+// gate expensive per-symbol operations (like a deep history backfill) so a
+// partial string caught mid-typing ("SB", "SBC" while typing "SBCL") never
+// triggers one, only a real, complete NSE trading symbol does.
+async function isValidNseSymbol(symbol) {
+  const needle = (symbol || '').trim().toUpperCase();
+  if (!needle) return false;
+  const rows = await loadNseEquityRows();
+  return rows.some(r => (r.trading_symbol || '').toUpperCase() === needle);
+}
+
+module.exports = { findNseSymbolCandidates, searchNseSymbols, isValidNseSymbol };
