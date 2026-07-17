@@ -13,6 +13,12 @@ const CHUNK_DAYS = 365;
 const UPSERT_BATCH_SIZE = 500;
 const RATE_LIMIT_DELAY_MS = 500;
 
+// A brand-new symbol's full history (back to 2020) takes several sequential
+// Groww requests — too slow to make a trader wait on before the chart shows
+// anything. Fetch and store this much first (awaited, fast — 1-2 chunks),
+// then keep pulling everything older in the background.
+const PRIORITY_WINDOW_DAYS = 500;
+
 function addDays(dateStr, days) {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
@@ -34,23 +40,22 @@ async function alreadyBackfilled(symbol, sinceDate) {
   return !!data && data.date <= sinceDate;
 }
 
-async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false } = {}) {
-  if (!force && await alreadyBackfilled(symbol, sinceDate)) {
-    console.log(`[backfill] ${symbol}: already has history back to ${sinceDate} or earlier, skipping`);
-    return { symbol, candles: 0, skipped: true };
-  }
-
-  const today = new Date().toISOString().split('T')[0];
-  let cursor = sinceDate;
+// Fetches [fromDate, toDate], computes patterns/volume averages over just
+// that range, and upserts it. Patterns within a few candles of `fromDate`
+// may be incomplete if their setup started before this range (no earlier
+// context available yet) — a minor, self-correcting gap once the
+// background older-history fetch for the preceding range lands.
+async function fetchAndStoreRange(symbol, fromDate, toDate) {
+  let cursor = fromDate;
   const allCandles = [];
 
-  while (cursor < today) {
-    const chunkTo = addDays(cursor, CHUNK_DAYS) > today ? today : addDays(cursor, CHUNK_DAYS);
+  while (cursor <= toDate) {
+    const chunkTo = addDays(cursor, CHUNK_DAYS) > toDate ? toDate : addDays(cursor, CHUNK_DAYS);
     console.log(`[backfill] ${symbol}: fetching ${cursor} -> ${chunkTo}`);
     const candles = await fetchDailyOhlc(symbol, cursor, chunkTo);
     allCandles.push(...candles);
     cursor = addDays(chunkTo, 1);
-    await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY_MS));
+    if (cursor <= toDate) await new Promise(r => setTimeout(r, RATE_LIMIT_DELAY_MS));
   }
 
   // Chunk boundaries can overlap by a day — de-dupe and sort ascending so
@@ -59,7 +64,7 @@ async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false 
   const candles = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 
   if (!candles.length) {
-    console.warn(`[backfill] ${symbol}: no candles returned for ${sinceDate} -> ${today}`);
+    console.warn(`[backfill] ${symbol}: no candles returned for ${fromDate} -> ${toDate}`);
     return { symbol, candles: 0 };
   }
 
@@ -90,8 +95,29 @@ async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false 
     if (error) throw new Error(`Upsert failed for ${symbol} (batch starting row ${i}): ${error.message}`);
   }
 
-  console.log(`[backfill] ${symbol}: ${rows.length} candles stored (${sinceDate} -> ${today})`);
+  console.log(`[backfill] ${symbol}: ${rows.length} candles stored (${fromDate} -> ${toDate})`);
   return { symbol, candles: rows.length };
+}
+
+async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false } = {}) {
+  if (!force && await alreadyBackfilled(symbol, sinceDate)) {
+    console.log(`[backfill] ${symbol}: already has history back to ${sinceDate} or earlier, skipping`);
+    return { symbol, candles: 0, skipped: true };
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+  const priorityFrom = addDays(today, -PRIORITY_WINDOW_DAYS);
+  const recentFrom = priorityFrom > sinceDate ? priorityFrom : sinceDate;
+
+  const recentResult = await fetchAndStoreRange(symbol, recentFrom, today);
+
+  if (recentFrom > sinceDate) {
+    fetchAndStoreRange(symbol, sinceDate, addDays(recentFrom, -1)).catch(err =>
+      console.error(`[backfill] ${symbol}: background older-history fetch failed — ${err.message}`)
+    );
+  }
+
+  return recentResult;
 }
 
 module.exports = { backfillSymbol };
