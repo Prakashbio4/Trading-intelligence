@@ -1,0 +1,44 @@
+.chartContainer {
+  height: 1000px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  position: relative;
+}
+
+.loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.notice {
+  height: 1000px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  color: var(--muted);
+  text-align: center;
+  padding: var(--sp-6);
+}
+
+.noticeHint {
+  font-size: 13px;
+  max-width: 480px;
+}
+
+.noticeHint code {
+  font-family: var(--font-mono);
+  background: var(--surface2);
+  padding: 1px 5px;
+  border-radius: 4px;
+}

@@ -21,7 +21,12 @@ async function loadNseEquityRows() {
     const csv = await res.text();
     const { data } = Papa.parse(csv, { header: true, skipEmptyLines: true });
 
-    const rows = data.filter(row => row.exchange === 'NSE' && row.instrument_type === 'EQ');
+    // instrument_type === 'EQ' alone isn't enough — Groww's master tags NCD/
+    // bond instruments (e.g. "Sammaan Capital Mar'35", series N1/N0) with
+    // instrument_type 'EQ' too. `series === 'EQ'` is what actually
+    // distinguishes a real tradable stock (confirmed against real data:
+    // RELIANCE has series 'EQ', the bond rows have 'N1'/'N0').
+    const rows = data.filter(row => row.exchange === 'NSE' && row.instrument_type === 'EQ' && row.series === 'EQ');
     _cache = { rows, fetchedAt: Date.now() };
     return rows;
   })();
@@ -73,4 +78,23 @@ async function searchNseSymbols(query, limit = 8) {
   return rankMatches(needle, rows, limit);
 }
 
-module.exports = { findNseSymbolCandidates, searchNseSymbols };
+// Exact-match check against the same cached instrument master — used to
+// gate expensive per-symbol operations (like a deep history backfill) so a
+// partial string caught mid-typing ("SB", "SBC" while typing "SBCL") never
+// triggers one, only a real, complete NSE trading symbol does.
+async function isValidNseSymbol(symbol) {
+  const needle = (symbol || '').trim().toUpperCase();
+  if (!needle) return false;
+  const rows = await loadNseEquityRows();
+  return rows.some(r => (r.trading_symbol || '').toUpperCase() === needle);
+}
+
+// Every NSE cash-equity trading symbol Groww knows about — the target list
+// for the chart-cache pre-warm job. Same cache as everything else here, so
+// this costs nothing beyond what's already fetched daily.
+async function loadAllNseEquitySymbols() {
+  const rows = await loadNseEquityRows();
+  return [...new Set(rows.map(r => r.trading_symbol).filter(Boolean))];
+}
+
+module.exports = { findNseSymbolCandidates, searchNseSymbols, isValidNseSymbol, loadAllNseEquitySymbols };

@@ -4,7 +4,8 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const { processSymbol } = require('../jobs/fetchOhlc');
-const { searchNseSymbols } = require('../lib/growwInstruments');
+const { backfillSymbol } = require('../jobs/backfillHistory');
+const { searchNseSymbols, isValidNseSymbol } = require('../lib/growwInstruments');
 const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
@@ -169,6 +170,29 @@ router.get('/:symbol/window', async (req, res) => {
   });
 
   res.json(tagged);
+});
+
+// POST /universe/:symbol/backfill — deep history backfill (full years, not
+// the nightly job's ~20-day window) for a symbol just typed into Analyse's
+// live chart. Awaits completion (can take up to ~30s for a brand-new symbol,
+// chunked across several Groww calls) so the caller has a real signal for
+// when to refresh the chart — backfillSymbol itself skips the work entirely
+// if this symbol already has deep history stored, so repeat calls are cheap.
+router.post('/:symbol/backfill', async (req, res) => {
+  const symbol = req.params.symbol.toUpperCase();
+  try {
+    // Gate on a real, complete NSE symbol first — cheap (cached instrument
+    // master, no network call), and stops a partial string caught mid-typing
+    // ("SB", "SBC" while the user is still typing "SBCL") from ever reaching
+    // Groww's historical API at all.
+    if (!(await isValidNseSymbol(symbol))) {
+      return res.json({ symbol, candles: 0, skipped: true, reason: 'not_a_known_symbol' });
+    }
+    const result = await backfillSymbol(symbol);
+    res.json(result);
+  } catch (err) {
+    res.status(502).json({ error: err.message });
+  }
 });
 
 // GET /universe/:symbol/ohlc — get stored OHLC + patterns for a symbol

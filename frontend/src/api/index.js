@@ -136,6 +136,14 @@ export async function searchSymbols(query) {
   return handleResponse(res);
 }
 
+export async function backfillSymbolHistory(symbol) {
+  const res = await fetch(`${BASE}/universe/${encodeURIComponent(symbol)}/backfill`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  return handleResponse(res);
+}
+
 export async function getInsightsContext() {
   const res = await fetch(`${BASE}/journal/insights-context`, { headers: authHeaders() });
   return handleResponse(res);

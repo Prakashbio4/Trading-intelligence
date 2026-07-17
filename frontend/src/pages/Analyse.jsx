@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import UploadZone from '../components/UploadZone.jsx';
 import ChatPanel from '../components/ChatPanel.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
+import TradingViewChart from '../components/TradingViewChart.jsx';
 import { SelectField, NumberField, TextField, TextArea } from '../components/Field.jsx';
 import { SymbolField } from '../components/SymbolField.jsx';
 import { analyzeUnified, saveSession } from '../api/index.js';
@@ -306,6 +307,12 @@ export default function Analyse() {
             <TextField label="Date" value={form.date}
               onChange={v => !locked && set('date', v)} />
           </div>
+        </section>
+
+        {/* ── Live Chart ───────────────────────────────────────────────── */}
+        <section className="card">
+          <div className="section-label">Live Chart</div>
+          <TradingViewChart symbol={form.ticker} />
         </section>
 
         {/* ── Trend Read ───────────────────────────────────────────────── */}

@@ -6,3 +6,7 @@
 # generated repo dumps / scratch
 codebase.txt
 structure.txt
+
+# TradingView Advanced Charts lives at frontend/public/tradingview/ as a git
+# submodule (see README.md) — nothing to ignore here, git tracks submodule
+# content as a commit reference, not as regular files.

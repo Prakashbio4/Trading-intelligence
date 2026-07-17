@@ -74,3 +74,22 @@ npm run dev            # http://localhost:5173
 ```
 
 Required env vars are documented in each package's `.env.example`. Nothing sensitive is committed — `.env` files are gitignored.
+
+**Chart page (TradingView Advanced Charts)**
+
+The Chart tab loads TradingView's Advanced Charts widget from a git submodule at `frontend/public/tradingview/`, pointed at their private `charting_library` repo. It's not vendored into this repo directly since the library isn't redistributable — only the submodule *reference* (a URL + commit SHA) is committed, not the code itself.
+
+You need your own TradingView-granted access to `tradingview/charting_library` to fetch it:
+
+```
+git submodule add git@github.com:tradingview/charting_library.git frontend/public/tradingview
+git submodule update --init
+```
+
+Anyone else cloning this repo (with their own access) runs:
+
+```
+git submodule update --init
+```
+
+Without the submodule initialized, the Chart tab shows a fallback message instead of failing silently.

@@ -9,9 +9,11 @@ const journalRouter   = require('./routes/journal');
 const authRouter      = require('./routes/auth');
 const universeRouter  = require('./routes/universe');
 const learnRouter     = require('./routes/learn');
+const datafeedRouter  = require('./routes/datafeed');
 const { runFetchOhlc } = require('./jobs/fetchOhlc');
 const { runPopulateOutcomes } = require('./jobs/populateOutcomes');
 const { runLearnNudges } = require('./jobs/learnNudges');
+const { runPrewarmChartCache } = require('./jobs/prewarmChartCache');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -37,6 +39,7 @@ app.use('/analyze',  analyzeRouter);
 app.use('/journal',  journalRouter);
 app.use('/universe', universeRouter);
 app.use('/learn',    learnRouter);
+app.use('/datafeed/udf', datafeedRouter);
 
 app.get('/health', (_req, res) =>
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
@@ -59,6 +62,13 @@ cron.schedule('45 16 * * 1-5', () => {
 cron.schedule('0 17 * * 1-5', () => {
   console.log('[cron] Triggering learn nudge scan...');
   runLearnNudges().catch(err => console.error('[cron] Learn nudge scan error:', err.message));
+}, { timezone: 'Asia/Kolkata' });
+
+// Chart-cache pre-warm — broad NSE universe, decoupled from stock_universe.
+// Scheduled well after the other jobs so it doesn't compete with them.
+cron.schedule('0 22 * * 1-5', () => {
+  console.log('[cron] Triggering chart-cache pre-warm...');
+  runPrewarmChartCache().catch(err => console.error('[cron] Chart-cache pre-warm error:', err.message));
 }, { timezone: 'Asia/Kolkata' });
 
 // On startup: if today is a weekday and it's after 4:15 PM IST, check whether
