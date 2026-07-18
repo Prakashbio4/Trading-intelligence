@@ -14,6 +14,7 @@ const { runFetchOhlc } = require('./jobs/fetchOhlc');
 const { runPopulateOutcomes } = require('./jobs/populateOutcomes');
 const { runLearnNudges } = require('./jobs/learnNudges');
 const { runPrewarmChartCache } = require('./jobs/prewarmChartCache');
+const { loadNseEquityRows } = require('./lib/growwInstruments');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -93,6 +94,14 @@ cron.schedule('0 22 * * 1-5', () => {
     console.error('[startup] Catch-up fetch error:', err.message);
   }
 })();
+
+// Warm the NSE instrument-master cache at boot so the first autocomplete
+// keystroke after a deploy/restart doesn't pay for the fetch+parse itself —
+// loadNseEquityRows() is idempotent and shared with every route that uses it.
+const warmStart = Date.now();
+loadNseEquityRows()
+  .then(rows => console.log(`[startup] NSE instrument cache warmed (${rows.length} symbols, ${Date.now() - warmStart}ms)`))
+  .catch(err => console.error('[startup] NSE instrument cache warm-up failed:', err.message));
 
 app.listen(PORT, () => {
   console.log(`SIPY Wick backend running on http://localhost:${PORT}`);

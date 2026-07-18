@@ -97,4 +97,4 @@ async function loadAllNseEquitySymbols() {
   return [...new Set(rows.map(r => r.trading_symbol).filter(Boolean))];
 }
 
-module.exports = { findNseSymbolCandidates, searchNseSymbols, isValidNseSymbol, loadAllNseEquitySymbols };
+module.exports = { findNseSymbolCandidates, searchNseSymbols, isValidNseSymbol, loadAllNseEquitySymbols, loadNseEquityRows };
