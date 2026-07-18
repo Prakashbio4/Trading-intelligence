@@ -99,20 +99,6 @@ export default function TradingViewChart({ symbol }) {
       theme: 'dark',
       autosize: true,
       timezone: 'Asia/Kolkata',
-      // Bottom range-selector toolbar. Resolution is pinned to 'D' on every
-      // entry since /datafeed/udf only ever serves daily bars (no intraday) —
-      // the buttons still work as pure visible-range shortcuts over that data.
-      time_frames: [
-        { text: '1D', resolution: 'D', description: '1 Day' },
-        { text: '5D', resolution: 'D', description: '5 Days' },
-        { text: '1M', resolution: 'D', description: '1 Month' },
-        { text: '3M', resolution: 'D', description: '3 Months' },
-        { text: '6M', resolution: 'D', description: '6 Months' },
-        { text: 'YTD', resolution: 'D', description: 'Year To Date' },
-        { text: '1Y', resolution: 'D', description: '1 Year' },
-        { text: '5Y', resolution: 'D', description: '5 Years' },
-        { text: 'ALL', resolution: 'D', description: 'All' },
-      ],
     });
     widgetRef.current = widget;
     widget.chartReady().then(() => addDefaultStudies(widget));
