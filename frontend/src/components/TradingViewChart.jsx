@@ -99,6 +99,24 @@ export default function TradingViewChart({ symbol }) {
       theme: 'dark',
       autosize: true,
       timezone: 'Asia/Kolkata',
+      // Bottom range-selector toolbar. `text` must match the library's
+      // required <integer><y|m|d> format (verified against TradingView's
+      // docs) — "All" has no native keyword, so it's approximated as a huge
+      // duration with `title` overriding the displayed label. Resolution is
+      // pinned to 'D' on every entry since /datafeed/udf only ever serves
+      // daily bars; entries requesting an unsupported resolution get hidden
+      // by the library rather than erroring, but 'D' is what we actually want
+      // anyway.
+      time_frames: [
+        { text: '1d', resolution: 'D', title: '1D', description: '1 Day' },
+        { text: '5d', resolution: 'D', title: '5D', description: '5 Days' },
+        { text: '1m', resolution: 'D', title: '1M', description: '1 Month' },
+        { text: '3m', resolution: 'D', title: '3M', description: '3 Months' },
+        { text: '6m', resolution: 'D', title: '6M', description: '6 Months' },
+        { text: '1y', resolution: 'D', title: '1Y', description: '1 Year' },
+        { text: '5y', resolution: 'D', title: '5Y', description: '5 Years' },
+        { text: '1000y', resolution: 'D', title: 'All', description: 'All' },
+      ],
     });
     widgetRef.current = widget;
     widget.chartReady().then(() => addDefaultStudies(widget));
