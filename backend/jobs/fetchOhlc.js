@@ -4,6 +4,7 @@ const supabase = require('../lib/supabase');
 const { fetchDailyOhlc } = require('../lib/groww');
 const { findNseSymbolCandidates } = require('../lib/growwInstruments');
 const { detectPatterns } = require('../lib/patterns');
+const { invalidateSymbol } = require('../lib/ohlcCache');
 
 const LOOKBACK_DAYS = 20; // fetch 20 days so 14-day window always has full data + pattern detection needs prior candles
 const INVALID_SYMBOL_CODE = 'GA001'; // Groww: "Please provide correct value of trading symbol" — never going to succeed on retry
@@ -127,6 +128,7 @@ async function processSymbol(symbol, priorFailures = 0) {
     return { symbol, status: 'db_error', error: error.message };
   }
 
+  invalidateSymbol(symbol);
   await recordSuccess(symbol);
   console.log(`[fetchOhlc] ${symbol}: ${enriched.length} candles, ${patterns.length} patterns`);
   return { symbol, status: 'ok', candles: enriched.length, patterns: patterns.length };

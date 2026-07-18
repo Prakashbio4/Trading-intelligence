@@ -2,8 +2,8 @@
 
 const express = require('express');
 const router = express.Router();
-const supabase = require('../lib/supabase');
 const { searchNseSymbols } = require('../lib/growwInstruments');
+const { getSymbolRows } = require('../lib/ohlcCache');
 
 // UDF-compatible datafeed for the TradingView Advanced Charts widget embedded
 // in Analyse. Public/unauthenticated — it only ever serves NSE OHLC, the same
@@ -93,25 +93,26 @@ router.get('/history', async (req, res) => {
 
   const toDate = new Date(to * 1000).toISOString().split('T')[0];
 
-  let query = supabase
-    .from('ohlc_records')
-    .select('date, open, high, low, close, volume')
-    .eq('symbol', symbol)
-    .lte('date', toDate);
+  let allRows;
+  try {
+    allRows = await getSymbolRows(symbol);
+  } catch (err) {
+    return res.status(500).json({ s: 'error', errmsg: err.message });
+  }
+
+  // allRows is cached ascending by date — slice locally instead of
+  // re-querying Supabase per pan/scroll step.
+  let rows = allRows.filter(r => r.date <= toDate);
 
   // countback takes priority over from per the UDF spec — return the last
   // `countback` bars ending at `to`, ignoring `from` entirely.
   if (countback) {
-    query = query.order('date', { ascending: false }).limit(countback);
+    rows = rows.slice(-countback);
   } else {
     const fromDate = new Date(from * 1000).toISOString().split('T')[0];
-    query = query.gte('date', fromDate).order('date', { ascending: true });
+    rows = rows.filter(r => r.date >= fromDate);
   }
 
-  const { data, error } = await query;
-  if (error) return res.status(500).json({ s: 'error', errmsg: error.message });
-
-  const rows = countback ? [...data].reverse() : data;
   if (!rows.length) return res.json({ s: 'no_data' });
 
   res.json({
