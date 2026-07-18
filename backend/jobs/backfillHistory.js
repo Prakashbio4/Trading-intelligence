@@ -4,6 +4,7 @@ const supabase = require('../lib/supabase');
 const { fetchDailyOhlc } = require('../lib/groww');
 const { detectPatterns } = require('../lib/patterns');
 const { enrichWithVolAvg } = require('./fetchOhlc');
+const { invalidateSymbol } = require('../lib/ohlcCache');
 
 // One-time deep backfill for a symbol's full history — separate from the
 // nightly job, which only ever pulls a rolling ~20-day window. Chunked into
@@ -95,6 +96,7 @@ async function fetchAndStoreRange(symbol, fromDate, toDate) {
     if (error) throw new Error(`Upsert failed for ${symbol} (batch starting row ${i}): ${error.message}`);
   }
 
+  invalidateSymbol(symbol);
   console.log(`[backfill] ${symbol}: ${rows.length} candles stored (${fromDate} -> ${toDate})`);
   return { symbol, candles: rows.length };
 }
