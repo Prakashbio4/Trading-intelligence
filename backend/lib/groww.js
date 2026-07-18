@@ -101,4 +101,51 @@ async function fetchDailyOhlc(symbol, fromDate, toDate) {
   }));
 }
 
-module.exports = { getAccessToken, fetchDailyOhlc };
+// Fetch intraday OHLC candles for a NSE symbol over a date-time range.
+// symbol: plain ticker. fromDateTime/toDateTime: "YYYY-MM-DD HH:MM:SS" strings.
+// intervalMinutes: e.g. 1, 5, 15, 60. Left as a sibling to fetchDailyOhlc
+// rather than a shared refactor — every cron/backfill job depends on
+// fetchDailyOhlc's exact behavior, and this keeps that path untouched.
+async function fetchIntradayOhlc(symbol, fromDateTime, toDateTime, intervalMinutes) {
+  const token = await getAccessToken();
+
+  const params = new URLSearchParams({
+    exchange: 'NSE',
+    segment: 'CASH',
+    trading_symbol: symbol,
+    start_time: fromDateTime,
+    end_time: toDateTime,
+    interval_in_minutes: String(intervalMinutes),
+  });
+
+  const res = await fetch(`${BASE_URL}/historical/candle/range?${params}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'X-API-VERSION': '1.0',
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Groww intraday OHLC fetch failed for ${symbol} (${res.status}): ${text}`);
+  }
+
+  const data = await res.json();
+  if (data.status !== 'SUCCESS') {
+    throw new Error(`Groww intraday OHLC error for ${symbol}: ${JSON.stringify(data)}`);
+  }
+
+  // Keep the full epoch timestamp (unlike fetchDailyOhlc, which collapses to
+  // a date string) — intraday bars need time-of-day precision.
+  return (data.payload.candles || []).map(([ts, open, high, low, close, volume]) => ({
+    timestamp: ts,
+    open:   Number(open),
+    high:   Number(high),
+    low:    Number(low),
+    close:  Number(close),
+    volume: Number(volume),
+  }));
+}
+
+module.exports = { getAccessToken, fetchDailyOhlc, fetchIntradayOhlc };
