@@ -93,3 +93,12 @@ git submodule update --init
 ```
 
 Without the submodule initialized, the Chart tab shows a fallback message instead of failing silently.
+
+**Deploying the Chart page (Vercel)**
+
+Vercel's build container has no access to your local git credentials, so it can't clone the private `tradingview/charting_library` submodule on its own. `frontend/vercel.json` handles this via a custom `installCommand` that authenticates git with a token before running `git submodule update --init`. To enable it:
+
+1. Generate a GitHub personal access token (fine-grained, read-only "Contents" permission, scoped to just `tradingview/charting_library`) on an account TradingView has approved for Advanced Charts access.
+2. In the Vercel project's Settings → Environment Variables, add `TRADINGVIEW_GIT_TOKEN` (Production, and Preview if preview deployments should render charts too). Do **not** prefix it `VITE_` — it must stay build-time-only and never ship in the client bundle.
+3. In Settings → General, confirm Root Directory is `frontend` and enable "Include source files outside of the Root Directory in the Build Step" — the submodule and `.gitmodules` live at the repo root, one level above `frontend/`.
+4. Redeploy.
