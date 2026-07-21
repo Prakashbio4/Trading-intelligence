@@ -115,7 +115,7 @@ async function fetchAndStoreRange(symbol, fromDate, toDate) {
   return { symbol, candles: rows.length };
 }
 
-async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false } = {}) {
+async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false, background = true } = {}) {
   const today = new Date().toISOString().split('T')[0];
 
   if (!force) {
@@ -150,9 +150,24 @@ async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false 
   const recentResult = await fetchAndStoreRange(symbol, recentFrom, today);
 
   if (recentFrom > sinceDate) {
-    fetchAndStoreRange(symbol, sinceDate, addDays(recentFrom, -1)).catch(err =>
-      console.error(`[backfill] ${symbol}: background older-history fetch failed — ${err.message}`)
-    );
+    const olderHistory = fetchAndStoreRange(symbol, sinceDate, addDays(recentFrom, -1));
+    if (background) {
+      // Fire-and-forget — right for the on-demand "symbol just typed into
+      // Analyse" caller, which wants a fast return and doesn't need the
+      // full multi-year history immediately. Wrong for a bulk caller
+      // (prewarmChartCache.js) processing many symbols in a loop: without
+      // awaiting here, each new symbol kicks off its own untracked
+      // background fetch chain and the loop immediately moves to the next
+      // one, so dozens of symbols' older-history chains end up running
+      // concurrently, uncoordinated with each other or the loop's own
+      // pacing delay. background:false makes this caller wait for the full
+      // backfill before moving on, keeping the whole batch properly paced.
+      olderHistory.catch(err =>
+        console.error(`[backfill] ${symbol}: background older-history fetch failed — ${err.message}`)
+      );
+    } else {
+      await olderHistory;
+    }
   }
 
   return recentResult;
