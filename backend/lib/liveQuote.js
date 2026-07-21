@@ -2,6 +2,7 @@
 
 const { fetchLiveQuote } = require('./groww');
 const { withRetry } = require('./retry');
+const { isValidSymbol } = require('./growwInstruments');
 
 // Short TTL — this exists specifically to stay current while a chart is
 // open and being polled every ~45s by the widget, unlike ohlcCache's 30min
@@ -46,6 +47,15 @@ async function getLiveBar(symbol) {
 
   const promise = (async () => {
     try {
+      // Cheap (cached instrument master, no network call) — stops a partial
+      // string caught mid-typing (e.g. "20 M" while typing "20 Microns", or
+      // "BANKE" while typing "BANKEX") from ever reaching Groww at all. The
+      // /history overlay that calls this fires on whatever symbol the widget
+      // currently has, which briefly includes intermediate typed values.
+      if (!(await isValidSymbol(symbol))) {
+        _cache.set(symbol, { bar: null, fetchedAt: Date.now() });
+        return null;
+      }
       const payload = await withRetry(() => fetchLiveQuote(symbol), { retries: 1, baseDelayMs: 300 });
       const bar = toBar(payload);
       _cache.set(symbol, { bar, fetchedAt: Date.now() });
