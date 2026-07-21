@@ -65,24 +65,31 @@ cron.schedule('0 17 * * 1-5', () => {
   runLearnNudges().catch(err => console.error('[cron] Learn nudge scan error:', err.message));
 }, { timezone: 'Asia/Kolkata' });
 
-// Chart-cache pre-warm — broad NSE universe, decoupled from stock_universe.
-// Hourly (not nightly) to push through the ~2389-symbol ramp-up fast after
-// the Groww credential outage stalled it — at 75 new symbols/run that's
-// ~32 hours to reach full coverage, not exactly one day; bump
-// NEW_SYMBOLS_PER_RUN in prewarmChartCache.js if you want it tighter.
-// Runs every hour, every day (not just weekdays) specifically to finish the
-// ramp-up quickly — Groww's historical-candle endpoint just returns no new
-// candles on non-trading days, so there's no harm running it then too.
-// Worth revisiting once the full universe is backfilled: once
-// alreadyBackfilled is true for every symbol, this switches to doing ~2389
-// cheap 20-day "refresh" Groww calls every hour, forever — likely more
-// than necessary for data that only actually changes once a day after
-// market close, and adds meaningfully more Groww API load than the
-// original once-nightly cadence.
-cron.schedule('0 * * * *', () => {
-  console.log('[cron] Triggering chart-cache pre-warm...');
-  runPrewarmChartCache().catch(err => console.error('[cron] Chart-cache pre-warm error:', err.message));
-}, { timezone: 'Asia/Kolkata' });
+// Chart-cache pre-warm — broad NSE+BSE+SME+index universe (~7368 symbols),
+// decoupled from stock_universe. Self-scheduling loop instead of a fixed
+// cron: starts the next run as soon as the previous one finishes (plus a
+// short cooldown), rather than idling out the rest of an hour a run already
+// finished well within (observed: ~20-30 min per run against a 150/run
+// ramp-up cap). Safe to run back-to-back at this cadence because
+// runPrewarmChartCache() (via backfillSymbol) skips already-fresh symbols
+// cheaply — a couple of Supabase reads, no Groww call — so once the
+// universe is fully backfilled a steady-state pass stays fast regardless of
+// how often it runs; PREWARM_COOLDOWN_MS is just a buffer between runs, not
+// a rate-limit necessity. runPrewarmChartCache's own re-entrancy guard
+// (_running) is defense in depth, not load-bearing here since this loop
+// already serializes via await.
+const PREWARM_COOLDOWN_MS = 60 * 1000;
+async function runPrewarmLoop() {
+  while (true) {
+    try {
+      await runPrewarmChartCache();
+    } catch (err) {
+      console.error('[cron] Chart-cache pre-warm error:', err.message);
+    }
+    await new Promise(r => setTimeout(r, PREWARM_COOLDOWN_MS));
+  }
+}
+runPrewarmLoop();
 
 // On startup: if today is a weekday and it's after 4:15 PM IST, check whether
 // today's OHLC data is already present. If not, the cron was missed (container
