@@ -2,18 +2,20 @@
 
 const express = require('express');
 const router = express.Router();
-const { searchNseSymbols } = require('../lib/growwInstruments');
+const { searchSymbols } = require('../lib/growwInstruments');
 const { getSymbolRows } = require('../lib/ohlcCache');
 const { getIntradayRows, RESOLUTION_MINUTES } = require('../lib/ohlcIntradayCache');
 const { aggregate } = require('../lib/ohlcAggregate');
+const { getLiveBar } = require('../lib/liveQuote');
+const { parseSymbol } = require('../lib/groww');
 
 // UDF-compatible datafeed for the TradingView Advanced Charts widget embedded
-// in Analyse. Public/unauthenticated — it only ever serves NSE OHLC, the same
-// data already reachable via /universe, and the UDF adapter bundle doesn't
-// support attaching an Authorization header.
+// in Analyse. Public/unauthenticated — it only ever serves NSE/BSE OHLC, the
+// same data already reachable via /universe, and the UDF adapter bundle
+// doesn't support attaching an Authorization header.
 // Spec: https://www.tradingview.com/charting-library-docs/latest/connecting_data/UDF
 
-const EXCHANGE = 'NSE';
+const EXCHANGES = ['NSE', 'BSE'];
 const SESSION = '0915-1530';
 const TIMEZONE = 'Asia/Kolkata';
 
@@ -37,8 +39,8 @@ router.get('/config', (_req, res) => {
     supports_marks: false,
     supports_timescale_marks: false,
     supports_time: true,
-    exchanges: [{ value: EXCHANGE, name: EXCHANGE, desc: EXCHANGE }],
-    symbols_types: [{ name: 'Stock', value: 'stock' }],
+    exchanges: EXCHANGES.map(ex => ({ value: ex, name: ex, desc: ex })),
+    symbols_types: [{ name: 'Stock', value: 'stock' }, { name: 'Index', value: 'index' }],
   });
 });
 
@@ -51,15 +53,21 @@ router.get('/time', (_req, res) => {
 router.get('/search', async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 15, 30);
-    const results = await searchNseSymbols(req.query.query, limit);
-    res.json(results.map(r => ({
-      symbol: r.tradingSymbol,
-      full_name: `${EXCHANGE}:${r.tradingSymbol}`,
-      description: r.name,
-      exchange: EXCHANGE,
-      ticker: r.tradingSymbol,
-      type: 'stock',
-    })));
+    const results = await searchSymbols(req.query.query, limit);
+    res.json(results.map(r => {
+      // exchange:plainSymbol for full_name — r.tradingSymbol is already our
+      // own "BSE:X"-prefixed identifier, so concatenating exchange onto it
+      // directly would double up the prefix.
+      const { exchange, symbol: plainSymbol } = parseSymbol(r.tradingSymbol);
+      return {
+        symbol: r.tradingSymbol,
+        full_name: `${exchange}:${plainSymbol}`,
+        description: r.name,
+        exchange,
+        ticker: r.tradingSymbol,
+        type: r.type,
+      };
+    }));
   } catch (err) {
     res.status(502).json({ s: 'error', errmsg: err.message });
   }
@@ -73,14 +81,15 @@ router.get('/search', async (req, res) => {
 router.get('/symbols', (req, res) => {
   const symbol = (req.query.symbol || '').toUpperCase();
   if (!symbol) return res.status(400).json({ s: 'error', errmsg: 'symbol is required' });
+  const { exchange, symbol: plainSymbol } = parseSymbol(symbol);
 
   res.json({
     ticker: symbol,
     name: symbol,
-    full_name: `${EXCHANGE}:${symbol}`,
+    full_name: `${exchange}:${plainSymbol}`,
     description: symbol,
-    exchange: EXCHANGE,
-    listed_exchange: EXCHANGE,
+    exchange,
+    listed_exchange: exchange,
     type: 'stock',
     session: SESSION,
     timezone: TIMEZONE,
@@ -161,6 +170,21 @@ router.get('/history', async (req, res) => {
   } else {
     const fromDate = new Date(from * 1000).toISOString().split('T')[0];
     rows = rows.filter(r => r.date >= fromDate);
+  }
+
+  // Overlay a live "today" bar on the daily view when today isn't finalized
+  // in the DB yet — this is what makes an open chart show the current price
+  // instead of only updating after tonight's cron. Never lets a live-quote
+  // failure break the historical response: any error here is swallowed and
+  // logged, falling back to whatever's already stored.
+  const today = new Date().toISOString().split('T')[0];
+  if (resolution === '1D' && toDate >= today && rows[rows.length - 1]?.date !== today) {
+    try {
+      const liveBar = await getLiveBar(symbol);
+      if (liveBar) rows = [...rows, liveBar];
+    } catch (err) {
+      console.error(`[datafeed] live bar fetch failed for ${symbol}: ${err.message}`);
+    }
   }
 
   if (!rows.length) return res.json({ s: 'no_data' });

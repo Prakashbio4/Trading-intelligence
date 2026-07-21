@@ -87,7 +87,11 @@ export default function TradingViewChart({ symbol }) {
     if (!librariesReady || trimmedSymbol.length < 2 || widgetRef.current || !containerRef.current) return;
 
     activeSymbolRef.current = trimmedSymbol;
-    const datafeed = new window.Datafeeds.UDFCompatibleDatafeed(`${BASE}/datafeed/udf`, 3600000);
+    // 45s update frequency (was 1hr) — UDFCompatibleDatafeed's built-in
+    // polling re-hits /history at this interval, which now overlays a live
+    // "today" bar (see backend/routes/datafeed.js), giving the chart a
+    // near-real-time price without any streaming infrastructure.
+    const datafeed = new window.Datafeeds.UDFCompatibleDatafeed(`${BASE}/datafeed/udf`, 45000);
 
     const widget = new window.TradingView.widget({
       symbol: trimmedSymbol,

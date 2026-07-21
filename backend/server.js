@@ -66,8 +66,20 @@ cron.schedule('0 17 * * 1-5', () => {
 }, { timezone: 'Asia/Kolkata' });
 
 // Chart-cache pre-warm — broad NSE universe, decoupled from stock_universe.
-// Scheduled well after the other jobs so it doesn't compete with them.
-cron.schedule('0 22 * * 1-5', () => {
+// Hourly (not nightly) to push through the ~2389-symbol ramp-up fast after
+// the Groww credential outage stalled it — at 75 new symbols/run that's
+// ~32 hours to reach full coverage, not exactly one day; bump
+// NEW_SYMBOLS_PER_RUN in prewarmChartCache.js if you want it tighter.
+// Runs every hour, every day (not just weekdays) specifically to finish the
+// ramp-up quickly — Groww's historical-candle endpoint just returns no new
+// candles on non-trading days, so there's no harm running it then too.
+// Worth revisiting once the full universe is backfilled: once
+// alreadyBackfilled is true for every symbol, this switches to doing ~2389
+// cheap 20-day "refresh" Groww calls every hour, forever — likely more
+// than necessary for data that only actually changes once a day after
+// market close, and adds meaningfully more Groww API load than the
+// original once-nightly cadence.
+cron.schedule('0 * * * *', () => {
   console.log('[cron] Triggering chart-cache pre-warm...');
   runPrewarmChartCache().catch(err => console.error('[cron] Chart-cache pre-warm error:', err.message));
 }, { timezone: 'Asia/Kolkata' });

@@ -6,6 +6,7 @@ const supabase = require('../lib/supabase');
 const { processSymbol } = require('../jobs/fetchOhlc');
 const { backfillSymbol } = require('../jobs/backfillHistory');
 const { searchNseSymbols, isValidNseSymbol } = require('../lib/growwInstruments');
+const { parseSymbol } = require('../lib/groww');
 const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
@@ -34,11 +35,15 @@ router.get('/symbols/search', async (req, res) => {
 // POST /universe — add a stock. Idempotent: re-adding an existing symbol is
 // a no-op rather than a duplicate-key error, so retries from the auto-add
 // call in Analyse are safe to fire more than once.
+// exchange is derived from the symbol itself (bare = NSE, "BSE:x" = BSE — see
+// lib/groww.js's parseSymbol) rather than accepted as a separate body field,
+// so the two can't drift out of sync.
 router.post('/', async (req, res) => {
-  const { symbol, exchange = 'NSE', sector = '' } = req.body;
+  const { symbol, sector = '' } = req.body;
   if (!symbol) return res.status(400).json({ error: 'symbol is required' });
 
   const upperSymbol = symbol.toUpperCase();
+  const { exchange } = parseSymbol(upperSymbol);
 
   const { error } = await supabase
     .from('stock_universe')
