@@ -89,18 +89,28 @@ async function loadEquityRows() {
   }
 }
 
-// Rank equity rows against a typed string: exact groww_symbol hit first
-// (some rejected symbols are actually the groww_symbol, not the trading_symbol
-// Groww expects for OHLC calls), then trading symbols that start with it
-// (e.g. "GENUS" -> "GENUSPOWER"), then company names containing it.
+// Rank equity rows against a typed string: exact identifier/groww_symbol hit
+// first (some rejected symbols are actually the groww_symbol, not the
+// trading_symbol Groww expects for OHLC calls), then trading symbols that
+// start with it (e.g. "GENUS" -> "GENUSPOWER"), then company names
+// containing it.
 function rankMatches(needle, rows, limit) {
-  const exactGrowwSymbol = rows.filter(r => (r.groww_symbol || '').toUpperCase() === needle);
-  const prefixMatches = rows.filter(r => (r.trading_symbol || '').toUpperCase().startsWith(needle));
-  const nameMatches = rows.filter(r => (r.name || '').toUpperCase().includes(needle));
+  // needle may itself be one of our own "EXCHANGE:"-prefixed identifiers if
+  // the user typed it directly (e.g. pasted/retyped "BSE:ALANKIT" rather
+  // than picking it from a suggestion) — Groww's raw trading_symbol/
+  // groww_symbol/name fields never contain that prefix, so matching against
+  // them needs the bare form or nothing would ever match.
+  const bareNeedle = needle.includes(':') ? needle.slice(needle.indexOf(':') + 1) : needle;
+
+  const exactMatch = rows.filter(r =>
+    identifierFor(r).toUpperCase() === needle || (r.groww_symbol || '').toUpperCase() === bareNeedle
+  );
+  const prefixMatches = rows.filter(r => (r.trading_symbol || '').toUpperCase().startsWith(bareNeedle));
+  const nameMatches = rows.filter(r => (r.name || '').toUpperCase().includes(bareNeedle));
 
   const seen = new Set();
   const results = [];
-  for (const row of [...exactGrowwSymbol, ...prefixMatches, ...nameMatches]) {
+  for (const row of [...exactMatch, ...prefixMatches, ...nameMatches]) {
     const id = identifierFor(row);
     if (seen.has(id)) continue;
     seen.add(id);
