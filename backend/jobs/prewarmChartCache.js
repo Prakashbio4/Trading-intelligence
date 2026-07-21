@@ -58,8 +58,15 @@ async function runPrewarmChartCache() {
         // top-up if it's deep but stale, or a full backfill if it's new —
         // reusing it here (instead of this job's own separate refresh-
         // everyone-every-run logic) is what makes steady-state runs fast
-        // enough to never overlap the next hourly fire.
-        const result = await withRetry(() => backfillSymbol(symbol, SINCE_DATE));
+        // enough to never overlap the next hourly fire. background:false is
+        // load-bearing here (unlike the on-demand /universe/:symbol/backfill
+        // route, which wants the default fast-return-then-keep-fetching):
+        // without it, each new symbol in this loop fires an untracked
+        // background older-history fetch and moves straight to the next
+        // one, so dozens of symbols' chains end up running concurrently,
+        // uncoordinated with this loop's own INTER_SYMBOL_DELAY_MS pacing —
+        // confirmed happening in production logs before this fix.
+        const result = await withRetry(() => backfillSymbol(symbol, SINCE_DATE, { background: false }));
 
         if (result.skipped) {
           alreadyFresh++;
