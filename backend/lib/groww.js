@@ -148,4 +148,41 @@ async function fetchIntradayOhlc(symbol, fromDateTime, toDateTime, intervalMinut
   }));
 }
 
-module.exports = { getAccessToken, fetchDailyOhlc, fetchIntradayOhlc };
+// Fetch a real-time quote snapshot (today's running OHLC + volume + last
+// price) for a single NSE symbol. Distinct from fetchDailyOhlc/
+// fetchIntradayOhlc — those hit the historical-candle API and only ever
+// return completed candles; this hits Groww's live-data API for the
+// still-forming "today" bar. Returns the raw payload — parsing/shaping into
+// a bar happens in lib/liveQuote.js, since the exact response shape
+// (particularly the `ohlc` field format) is unverified against real data.
+async function fetchLiveQuote(symbol) {
+  const token = await getAccessToken();
+
+  const params = new URLSearchParams({
+    exchange: 'NSE',
+    segment: 'CASH',
+    trading_symbol: symbol,
+  });
+
+  const res = await fetch(`${BASE_URL}/live-data/quote?${params}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Accept': 'application/json',
+      'X-API-VERSION': '1.0',
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Groww live quote fetch failed for ${symbol} (${res.status}): ${text}`);
+  }
+
+  const data = await res.json();
+  if (data.status !== 'SUCCESS') {
+    throw new Error(`Groww live quote error for ${symbol}: ${JSON.stringify(data)}`);
+  }
+
+  return data.payload;
+}
+
+module.exports = { getAccessToken, fetchDailyOhlc, fetchIntradayOhlc, fetchLiveQuote };

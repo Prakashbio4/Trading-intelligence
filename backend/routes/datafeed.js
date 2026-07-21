@@ -6,6 +6,7 @@ const { searchNseSymbols } = require('../lib/growwInstruments');
 const { getSymbolRows } = require('../lib/ohlcCache');
 const { getIntradayRows, RESOLUTION_MINUTES } = require('../lib/ohlcIntradayCache');
 const { aggregate } = require('../lib/ohlcAggregate');
+const { getLiveBar } = require('../lib/liveQuote');
 
 // UDF-compatible datafeed for the TradingView Advanced Charts widget embedded
 // in Analyse. Public/unauthenticated — it only ever serves NSE OHLC, the same
@@ -161,6 +162,21 @@ router.get('/history', async (req, res) => {
   } else {
     const fromDate = new Date(from * 1000).toISOString().split('T')[0];
     rows = rows.filter(r => r.date >= fromDate);
+  }
+
+  // Overlay a live "today" bar on the daily view when today isn't finalized
+  // in the DB yet — this is what makes an open chart show the current price
+  // instead of only updating after tonight's cron. Never lets a live-quote
+  // failure break the historical response: any error here is swallowed and
+  // logged, falling back to whatever's already stored.
+  const today = new Date().toISOString().split('T')[0];
+  if (resolution === '1D' && toDate >= today && rows[rows.length - 1]?.date !== today) {
+    try {
+      const liveBar = await getLiveBar(symbol);
+      if (liveBar) rows = [...rows, liveBar];
+    } catch (err) {
+      console.error(`[datafeed] live bar fetch failed for ${symbol}: ${err.message}`);
+    }
   }
 
   if (!rows.length) return res.json({ s: 'no_data' });
