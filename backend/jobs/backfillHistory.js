@@ -27,8 +27,9 @@ function addDays(dateStr, days) {
 }
 
 // True if the symbol's earliest stored row is already at or before sinceDate
-// — i.e. nothing new to fetch. Lets callers (like "backfill on symbol typed
-// in Analyse") re-trigger freely without re-hitting Groww every time.
+// — i.e. nothing older to fetch. Lets callers (like "backfill on symbol typed
+// in Analyse") re-trigger freely without re-hitting Groww every time. Says
+// nothing about how current the *recent* end is — see latestStoredDate.
 async function alreadyBackfilled(symbol, sinceDate) {
   const { data, error } = await supabase
     .from('ohlc_records')
@@ -39,6 +40,19 @@ async function alreadyBackfilled(symbol, sinceDate) {
     .maybeSingle();
   if (error) throw new Error(`Failed to check existing history for ${symbol}: ${error.message}`);
   return !!data && data.date <= sinceDate;
+}
+
+// Most recent stored date for a symbol, or null if nothing's stored yet.
+async function latestStoredDate(symbol) {
+  const { data, error } = await supabase
+    .from('ohlc_records')
+    .select('date')
+    .eq('symbol', symbol)
+    .order('date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to check latest stored date for ${symbol}: ${error.message}`);
+  return data?.date ?? null;
 }
 
 // Fetches [fromDate, toDate], computes patterns/volume averages over just
@@ -102,12 +116,34 @@ async function fetchAndStoreRange(symbol, fromDate, toDate) {
 }
 
 async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false } = {}) {
-  if (!force && await alreadyBackfilled(symbol, sinceDate)) {
-    console.log(`[backfill] ${symbol}: already has history back to ${sinceDate} or earlier, skipping`);
-    return { symbol, candles: 0, skipped: true };
+  const today = new Date().toISOString().split('T')[0];
+
+  if (!force) {
+    const [latest, hasDeepHistory] = await Promise.all([
+      latestStoredDate(symbol),
+      alreadyBackfilled(symbol, sinceDate),
+    ]);
+
+    if (hasDeepHistory) {
+      if (latest === today) {
+        console.log(`[backfill] ${symbol}: already up to date, skipping`);
+        return { symbol, candles: 0, skipped: true };
+      }
+      // Deep history exists but the recent end is stale — top up just the
+      // missing tail instead of a full re-backfill. alreadyBackfilled only
+      // ever checks the OLD end of the range, never freshness, so without
+      // this a symbol backfilled once would silently go stale forever, no
+      // matter how many times it got re-typed into the chart. Groww
+      // returning zero candles here (weekend/holiday/market not yet closed)
+      // is expected and handled by fetchAndStoreRange already.
+      const topUpFrom = addDays(latest, 1);
+      const result = await fetchAndStoreRange(symbol, topUpFrom, today);
+      console.log(`[backfill] ${symbol}: topped up ${topUpFrom} -> ${today} (stale since ${latest})`);
+      return result;
+    }
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  // No usable deep history yet (or force=true) — full backfill, same as before.
   const priorityFrom = addDays(today, -PRIORITY_WINDOW_DAYS);
   const recentFrom = priorityFrom > sinceDate ? priorityFrom : sinceDate;
 
@@ -122,4 +158,4 @@ async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false 
   return recentResult;
 }
 
-module.exports = { backfillSymbol, fetchAndStoreRange, alreadyBackfilled };
+module.exports = { backfillSymbol, fetchAndStoreRange, alreadyBackfilled, latestStoredDate };

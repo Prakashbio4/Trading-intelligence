@@ -176,8 +176,11 @@ router.get('/:symbol/window', async (req, res) => {
 // the nightly job's ~20-day window) for a symbol just typed into Analyse's
 // live chart. Awaits completion (can take up to ~30s for a brand-new symbol,
 // chunked across several Groww calls) so the caller has a real signal for
-// when to refresh the chart — backfillSymbol itself skips the work entirely
-// if this symbol already has deep history stored, so repeat calls are cheap.
+// when to refresh the chart. backfillSymbol skips entirely only if the
+// symbol already has deep history AND is current through today; if deep
+// history exists but has gone stale, it does a cheap top-up of just the
+// missing recent days instead of a full re-backfill — so repeat calls stay
+// cheap without ever silently serving stale data forever.
 router.post('/:symbol/backfill', async (req, res) => {
   const symbol = req.params.symbol.toUpperCase();
   try {
