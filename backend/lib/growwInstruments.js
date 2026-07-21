@@ -8,29 +8,45 @@ const Papa = require('papaparse');
 const INSTRUMENTS_CSV_URL = 'https://growwapi-assets.groww.in/instruments/instrument.csv';
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // instrument master changes rarely — refresh once a day
 
-// NSE 'SM' = NSE Emerge/SME. BSE 'A'/'X'/'XT'/'M'/'MT' = real, sampled-and-
-// confirmed equity groups (M/MT look like BSE's SME segment). Deliberately
-// excludes BSE 'F' (sampled: bonds/NCDs mistagged instrument_type EQ, same
-// problem as NSE's N0/N1) and BSE 'B' (sampled: contains real equity mixed
-// with mutual-fund segregated-portfolio units in the same series code —
-// series alone can't separate them; not confidently includable yet).
+// Verified against the full instrument master (147k rows), not just samples.
+// NSE 'SM' = NSE Emerge/SME, 'BE' = Trade-to-Trade mainboard (real companies,
+// just settled differently — was missing from the filter entirely before).
+// BSE 'A'/'B'/'T'/'X'/'XT'/'M'/'MT'/'Z' = real equity groups, confirmed by
+// spot-checking company names across the full dataset (B looked mixed from
+// an 8-row sample earlier, but at full scale is 1347 real companies vs 197
+// mutual-fund units — cleanly separable by ISIN prefix, see looksLikeJunk).
+// Deliberately excludes:
+//  - BSE 'F' (3266 rows, 100% NCDs/bonds mistagged instrument_type=EQ — same
+//    problem as NSE's N0/N1 — confirmed via maturity-date-suffixed names
+//    like "Kosamattam Finance Limited Aug'31" and terse bond codes)
+//  - BSE 'G' (162 rows — government securities/gilts, e.g. "654GOI2032",
+//    not company equity, doesn't trip any of the junk heuristics below so
+//    has to be excluded at the series level)
 const SERIES_BY_EXCHANGE = {
-  NSE: ['EQ', 'SM'],
-  BSE: ['A', 'X', 'XT', 'M', 'MT'],
+  NSE: ['EQ', 'SM', 'BE'],
+  BSE: ['A', 'B', 'T', 'X', 'XT', 'M', 'MT', 'Z'],
 };
 
 let _cache = null; // { rows, fetchedAt }
 let _fetchPromise = null;
 
-// Catches placeholder/junk rows that slip past the series allowlist: a row
-// whose name is empty or identical to its own symbol (seen throughout the
-// bond-tagged-EQ samples, e.g. "07AQR — 07AQR"), or whose name matches a
-// mutual-fund-scheme naming pattern (seen in BSE's 'B' series sample,
-// e.g. "... Segregated Portfolio 2 - Director Bonus Plan").
+// Catches non-equity rows that slip past the series allowlist:
+//  - name is empty (placeholder rows within bond-tagged series)
+//  - ISIN starts with "INF" — the standard Indian ISIN prefix for mutual
+//    fund/ETF units, as opposed to "INE" for company-issued securities
+//    (equity or debt). This is what actually separates BSE 'B's real
+//    companies from its mixed-in fund units — found 327 of these already
+//    silently present in the *existing*, already-deployed NSE filter too.
+//  - name ends in a maturity-date suffix like "Jul'27" — NCD/bond naming
+//    convention, catches debt instruments an INF/empty check alone misses
+//    (an earlier "name === trading_symbol" heuristic here produced false
+//    positives on real companies whose short name equals their ticker,
+//    e.g. "ALANKIT — Alankit" — replaced with these more precise checks).
 function looksLikeJunk(row) {
   const name = (row.name || '').trim();
-  if (!name || name.toUpperCase() === (row.trading_symbol || '').toUpperCase()) return true;
-  return /segregated portfolio|dividend plan|bonus plan|growth plan|regular plan|direct plan/i.test(name);
+  if (!name) return true;
+  if ((row.isin || '').startsWith('INF')) return true;
+  return /'\d{2}[A-Z]?$/i.test(name);
 }
 
 // Our own identifier for a row — NSE (incl. SME) stays bare, matching every
