@@ -10,12 +10,18 @@ const { isValidNseSymbol } = require('./growwInstruments');
 // never drift apart.
 const RESOLUTION_MINUTES = { '1': 1, '5': 5, '15': 15, '60': 60 };
 
-// Cold-fetch lookback window per resolution. UNVERIFIED against a real Groww
-// account — these just bound request size; if Groww errors or returns empty
-// for the full window, tune down. An overly optimistic default degrades
-// gracefully (empty payload -> no_data), it doesn't crash anything.
-const LOOKBACK_DAYS = { '1': 30, '5': 30, '15': 60, '60': 90 };
-const MAX_WINDOW_DAYS = 400; // hard ceiling regardless of what the widget requests
+// Max duration per single request, per Groww's documented limits (verified
+// against their real docs — 1min: 7 days, 5min: 15 days, 60min: 150 days;
+// 15min isn't explicitly documented, interpolated conservatively between
+// 10min's 30-day limit and 60min's 150-day limit). We do one unchunked
+// request per call (no multi-request stitching like backfillHistory.js does
+// for daily), so this must never exceed what Groww actually allows in a
+// single request — also doubles as the default lookback window when the
+// widget doesn't pass an explicit `from`. Separately, Groww only retains
+// intraday data at all for the last ~3 months regardless of resolution, so
+// there's no point defaulting close to the per-request cap for 60min (150
+// days) when data past ~90 days back won't exist anyway.
+const MAX_WINDOW_DAYS = { '1': 7, '5': 15, '15': 20, '60': 90 };
 
 const TTL_MS = 5 * 60 * 1000; // shorter than daily's 30 min — intraday changes more per interaction
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
@@ -42,8 +48,9 @@ async function getIntradayRows(symbol, resolution, { toTs, fromTs }) {
   if (!minutes) throw new Error(`Unsupported intraday resolution: ${resolution}`);
 
   const key = `${symbol}:${resolution}`;
-  const requestedFrom = fromTs != null ? fromTs : toTs - LOOKBACK_DAYS[resolution] * 86400;
-  const clampedFrom = Math.max(requestedFrom, toTs - MAX_WINDOW_DAYS * 86400);
+  const maxWindowDays = MAX_WINDOW_DAYS[resolution];
+  const requestedFrom = fromTs != null ? fromTs : toTs - maxWindowDays * 86400;
+  const clampedFrom = Math.max(requestedFrom, toTs - maxWindowDays * 86400);
 
   const cached = _cache.get(key);
   const fresh = cached && Date.now() - cached.fetchedAt < TTL_MS && clampedFrom >= cached.coverFromTs;
