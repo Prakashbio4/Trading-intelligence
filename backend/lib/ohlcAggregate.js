@@ -8,7 +8,7 @@
 // calendar-bucket key — avoids inventing a date that never traded (e.g. a
 // Monday that was a market holiday).
 function groupKey(dateStr, period) {
-  if (period === 'M') return `${dateStr.slice(0, 7)}-01`;
+  if (period === '1M') return `${dateStr.slice(0, 7)}-01`;
   const d = new Date(dateStr + 'T00:00:00Z');
   const diffToMonday = (d.getUTCDay() + 6) % 7;
   d.setUTCDate(d.getUTCDate() - diffToMonday);

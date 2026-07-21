@@ -20,7 +20,12 @@ const TIMEZONE = 'Asia/Kolkata';
 // Single source of truth for what resolutions this datafeed serves — derived
 // from ohlcIntradayCache's resolution map plus the daily/weekly/monthly set,
 // so /config, /symbols, and /history's routing can never drift apart.
-const RESOLUTIONS = [...Object.keys(RESOLUTION_MINUTES), 'D', 'W', 'M'];
+// Daily/weekly/monthly need the "1" multiplier prefix (UDF convention) —
+// confirmed against a real request logged in production: the widget's
+// default daily view requests resolution=1D, not bare D. The old /history
+// route never validated resolution at all, so this mismatch was silently
+// masked before; adding validation exposed it.
+const RESOLUTIONS = [...Object.keys(RESOLUTION_MINUTES), '1D', '1W', '1M'];
 const RESOLUTION_SET = new Set(RESOLUTIONS);
 
 // GET /datafeed/udf/config
@@ -95,7 +100,7 @@ router.get('/symbols', (req, res) => {
 // GET /datafeed/udf/history?symbol=&resolution=&from=&to=&countback=
 router.get('/history', async (req, res) => {
   const symbol = (req.query.symbol || '').toUpperCase();
-  const resolution = req.query.resolution || 'D';
+  const resolution = req.query.resolution || '1D';
   const to = parseInt(req.query.to);
   const countback = req.query.countback ? parseInt(req.query.countback) : null;
   const from = req.query.from ? parseInt(req.query.from) : null;
@@ -145,7 +150,7 @@ router.get('/history', async (req, res) => {
   // re-querying Supabase per pan/scroll step. Aggregate to W/M BEFORE
   // slicing to a range, not after — slicing first would silently truncate
   // a week/month's early days at the from/to boundary.
-  const bars = resolution === 'D' ? allRows : aggregate(allRows, resolution);
+  const bars = resolution === '1D' ? allRows : aggregate(allRows, resolution);
 
   let rows = bars.filter(r => r.date <= toDate);
 
