@@ -70,9 +70,13 @@ async function loadEquityRows() {
     const { data } = Papa.parse(csv, { header: true, skipEmptyLines: true });
 
     const rows = data.filter(row => {
+      if (!row.trading_symbol || looksLikeJunk(row)) return false;
+      // Indices (NIFTY, BANKNIFTY, SENSEX, INDIA VIX, ...) have no series
+      // value at all in Groww's data (instrument_type='IDX' instead) — 31
+      // real rows across NSE/BSE, all clean, verified against the full file.
+      if (row.instrument_type === 'IDX') return true;
       const allowedSeries = SERIES_BY_EXCHANGE[row.exchange];
-      if (!allowedSeries || row.instrument_type !== 'EQ' || !allowedSeries.includes(row.series)) return false;
-      return !looksLikeJunk(row);
+      return !!allowedSeries && row.instrument_type === 'EQ' && allowedSeries.includes(row.series);
     });
     _cache = { rows, fetchedAt: Date.now() };
     return rows;
@@ -100,7 +104,7 @@ function rankMatches(needle, rows, limit) {
     const id = identifierFor(row);
     if (seen.has(id)) continue;
     seen.add(id);
-    results.push({ tradingSymbol: id, name: row.name });
+    results.push({ tradingSymbol: id, name: row.name, type: row.instrument_type === 'IDX' ? 'index' : 'stock' });
     if (results.length >= limit) break;
   }
   return results;

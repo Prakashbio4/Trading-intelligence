@@ -40,7 +40,7 @@ router.get('/config', (_req, res) => {
     supports_timescale_marks: false,
     supports_time: true,
     exchanges: EXCHANGES.map(ex => ({ value: ex, name: ex, desc: ex })),
-    symbols_types: [{ name: 'Stock', value: 'stock' }],
+    symbols_types: [{ name: 'Stock', value: 'stock' }, { name: 'Index', value: 'index' }],
   });
 });
 
@@ -65,7 +65,7 @@ router.get('/search', async (req, res) => {
         description: r.name,
         exchange,
         ticker: r.tradingSymbol,
-        type: 'stock',
+        type: r.type,
       };
     }));
   } catch (err) {
