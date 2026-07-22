@@ -48,10 +48,10 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius);
-  color: var(--muted);
+  color: var(--text);
   font-family: var(--font-display);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 700;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
   white-space: nowrap;
