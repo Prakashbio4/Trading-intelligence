@@ -592,7 +592,7 @@ function PatternCheck({ session }) {
         fontSize: 12,
         fontWeight: 500,
         background: ok ? 'rgba(34,197,94,0.10)' : 'rgba(239,68,68,0.10)',
-        color:      ok ? '#22c55e' : '#ef4444',
+        color:      ok ? 'var(--teal)' : 'var(--danger)',
         border:     `1px solid ${ok ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
       }}>
         {ok ? '✓' : '✗'} {label}

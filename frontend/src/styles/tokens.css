@@ -1,19 +1,19 @@
 :root {
   /* Backgrounds */
-  --bg:        #0A0A0A;
-  --surface:   #141414;
-  --surface2:  #1E1E1E;
-  --border:    #2A2A2A;
+  --bg:        #F4F4F2;
+  --surface:   #FFFFFF;
+  --surface2:  #EFEFED;
+  --border:    #DCDCD8;
 
-  /* Accents */
-  --accent:    #C8F135;
-  --teal:      #4ADE80;
-  --amber:     #F59E0B;
-  --danger:    #EF4444;
+  /* Accents (darkened from brand values for readable contrast on white) */
+  --accent:    #5A7208;
+  --teal:      #15803D;
+  --amber:     #B45309;
+  --danger:    #DC2626;
 
   /* Text */
-  --text:      #F0F0F0;
-  --muted:     #888888;
+  --text:      #1A1A1A;
+  --muted:     #6B6B6B;
 
   /* Fonts */
   --font-display: 'Syne', sans-serif;

@@ -100,7 +100,7 @@ export default function TradingViewChart({ symbol }) {
       datafeed,
       library_path: '/tradingview/charting_library/',
       locale: 'en',
-      theme: 'dark',
+      theme: 'light',
       autosize: true,
       timezone: 'Asia/Kolkata',
       // Bottom range-selector toolbar. `text` must match the library's

@@ -70,7 +70,7 @@
   text-align: left;
   gap: var(--sp-4);
 }
-.cardHeader:hover { background: rgba(255,255,255,0.03); }
+.cardHeader:hover { background: rgba(0,0,0,0.03); }
 
 .cardLeft  { display: flex; align-items: center; gap: var(--sp-3); }
 .cardRight { display: flex; align-items: center; gap: var(--sp-3); flex-shrink: 0; }

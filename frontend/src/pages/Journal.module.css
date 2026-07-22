@@ -383,7 +383,7 @@
   align-items: flex-start;
   padding: var(--sp-2) var(--sp-3);
   border-radius: var(--radius);
-  background: rgba(255,255,255,0.02);
+  background: rgba(0,0,0,0.03);
 }
 .checkY { font-size: 13px; font-weight: 700; color: var(--accent); flex-shrink: 0; padding-top: 1px; }
 .checkN { font-size: 13px; font-weight: 700; color: var(--danger); flex-shrink: 0; padding-top: 1px; }
@@ -555,7 +555,7 @@
   height: 20px;
   border-radius: 50%;
   background: var(--danger);
-  color: #0A0A0A;
+  color: #FFFFFF;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -624,7 +624,7 @@
   font-family: var(--font-mono);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--text-muted);
+  color: var(--muted);
 }
 .levelInputRow {
   display: flex;
@@ -634,11 +634,11 @@
 .contextBlock {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+  border-top: 1px solid var(--border);
 }
 .contextHint {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--muted);
   margin: 4px 0 10px;
 }
 
@@ -899,7 +899,7 @@
 
 .candleSlotHint {
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--muted);
   line-height: 1.4;
 }
 
@@ -935,12 +935,12 @@
 
 .candleZoneIcon {
   font-size: 20px;
-  color: var(--text-muted);
+  color: var(--muted);
 }
 
 .candleZoneLabel {
   font-size: 12px;
-  color: var(--text-muted);
+  color: var(--muted);
 }
 
 .candlePreview {
@@ -993,7 +993,7 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  background: rgba(255,255,255,0.04);
+  background: rgba(0,0,0,0.04);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--sp-3) var(--sp-4);

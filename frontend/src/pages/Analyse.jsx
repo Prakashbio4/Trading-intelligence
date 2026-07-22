@@ -128,7 +128,7 @@ function SRSlCheck({ support, resistance, sl, decision }) {
       background: ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
       border: `1px solid ${ok ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
       fontSize: 13,
-      color: ok ? '#22c55e' : '#ef4444',
+      color: ok ? 'var(--teal)' : 'var(--danger)',
       display: 'flex',
       alignItems: 'center',
       gap: 8,

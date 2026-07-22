@@ -98,7 +98,7 @@ input[type="number"] { font-family: var(--font-mono); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-primary {
   background: var(--accent);
-  color: #0A0A0A;
+  color: #FFFFFF;
   border-color: var(--accent);
 }
 .btn-primary:hover:not(:disabled) { opacity: 0.88; }
