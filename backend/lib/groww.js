@@ -67,6 +67,17 @@ async function getAccessToken() {
   return _cachedToken;
 }
 
+// Groww's token can go bad before our 6 AM cache-expiry assumption thinks it
+// should (observed in production: a run of consecutive 401s across unrelated
+// symbols, meaning the token itself — not any per-symbol condition — went
+// dead early). Call this on a 401 response so the next withRetry attempt
+// re-authenticates instead of hammering the same dead token until the next
+// natural 6 AM refresh or a manual restart.
+function invalidateToken() {
+  _cachedToken = null;
+  _tokenFetchedAt = null;
+}
+
 // Fetch daily OHLC candles for a symbol over a date range.
 // symbol: plain NSE ticker (e.g. "WIPRO") or "EXCHANGE:ticker" (e.g. "BSE:ABBOTINDIA")
 // fromDate / toDate: "YYYY-MM-DD" strings
@@ -92,6 +103,7 @@ async function fetchDailyOhlc(symbol, fromDate, toDate) {
   });
 
   if (!res.ok) {
+    if (res.status === 401) invalidateToken();
     const text = await res.text();
     throw new Error(`Groww OHLC fetch failed for ${symbol} (${res.status}): ${text}`);
   }
@@ -140,6 +152,7 @@ async function fetchIntradayOhlc(symbol, fromDateTime, toDateTime, intervalMinut
   });
 
   if (!res.ok) {
+    if (res.status === 401) invalidateToken();
     const text = await res.text();
     throw new Error(`Groww intraday OHLC fetch failed for ${symbol} (${res.status}): ${text}`);
   }
@@ -186,6 +199,7 @@ async function fetchLiveQuote(symbol) {
   });
 
   if (!res.ok) {
+    if (res.status === 401) invalidateToken();
     const text = await res.text();
     throw new Error(`Groww live quote fetch failed for ${symbol} (${res.status}): ${text}`);
   }
@@ -198,4 +212,4 @@ async function fetchLiveQuote(symbol) {
   return data.payload;
 }
 
-module.exports = { getAccessToken, fetchDailyOhlc, fetchIntradayOhlc, fetchLiveQuote, parseSymbol };
+module.exports = { getAccessToken, fetchDailyOhlc, fetchIntradayOhlc, fetchLiveQuote, parseSymbol, invalidateToken };
