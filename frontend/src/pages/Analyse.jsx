@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import UploadZone from '../components/UploadZone.jsx';
 import ChatPanel from '../components/ChatPanel.jsx';
 import ErrorBoundary from '../components/ErrorBoundary.jsx';
 import TradingViewChart from '../components/TradingViewChart.jsx';
@@ -147,7 +146,6 @@ function SRSlCheck({ support, resistance, sl, decision }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Analyse() {
-  const [chartFile,      setChartFile]      = useState(null);
   const [form,           setForm]           = useState(initForm());
   const [sequence,       setSequence]       = useState(initSequence());
   const [triggerPattern, setTriggerPattern] = useState('');
@@ -184,7 +182,6 @@ export default function Analyse() {
   }, [form.ticker, form.primaryTrend, triggerPattern, decision, confidence, entry, sl, target]);
 
   async function handleSubmit() {
-    if (!chartFile) { setError('Please upload a chart image first.'); return; }
     setLoading(true);
     setError(null);
 
@@ -227,7 +224,6 @@ export default function Analyse() {
     };
 
     const fd = new FormData();
-    fd.append('chart', chartFile);
     fd.append('formData', JSON.stringify(payload));
 
     try {
@@ -263,7 +259,6 @@ export default function Analyse() {
   }
 
   function handleReset() {
-    setChartFile(null);
     setForm(initForm());
     setSequence(initSequence());
     setTriggerPattern('');
@@ -290,12 +285,6 @@ export default function Analyse() {
       </div>
 
       <div className={styles.body}>
-
-        {/* ── Chart upload ─────────────────────────────────────────────── */}
-        <section className="card">
-          <div className="section-label">Chart</div>
-          <UploadZone onFile={setChartFile} disabled={locked || loading} />
-        </section>
 
         {/* ── Context ──────────────────────────────────────────────────── */}
         <section className="card">
