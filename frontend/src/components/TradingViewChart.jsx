@@ -123,7 +123,14 @@ export default function TradingViewChart({ symbol }) {
       ],
     });
     widgetRef.current = widget;
-    widget.chartReady().then(() => addDefaultStudies(widget));
+    widget.chartReady().then(() => {
+      // The library restores a previously saved layout (incl. its theme)
+      // from local storage on load, which silently overrides the `theme`
+      // constructor option above for any browser that already has a saved
+      // chart. changeTheme forces it regardless of what was saved.
+      widget.changeTheme('light');
+      addDefaultStudies(widget);
+    });
     backfillAndRefresh(trimmedSymbol);
 
     return () => {
