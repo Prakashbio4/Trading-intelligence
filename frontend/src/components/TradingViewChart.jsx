@@ -103,6 +103,15 @@ export default function TradingViewChart({ symbol }) {
       theme: 'light',
       autosize: true,
       timezone: 'Asia/Kolkata',
+      // Explicit alongside `theme: 'light'` above — belt and suspenders
+      // against a saved layout's dark pane colors surviving the theme switch.
+      overrides: {
+        'paneProperties.background': '#FFFFFF',
+        'paneProperties.backgroundType': 'solid',
+        'paneProperties.vertGridProperties.color': '#E6E6E3',
+        'paneProperties.horzGridProperties.color': '#E6E6E3',
+        'scalesProperties.textColor': '#1A1A1A',
+      },
       // Bottom range-selector toolbar. `text` must match the library's
       // required <integer><y|m|d> format (verified against TradingView's
       // docs) — "All" has no native keyword, so it's approximated as a huge
