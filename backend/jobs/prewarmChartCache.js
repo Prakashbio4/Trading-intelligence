@@ -3,6 +3,13 @@
 const { loadAllEquitySymbols } = require('../lib/growwInstruments');
 const { backfillSymbol, alreadyBackfilled } = require('./backfillHistory');
 const { withRetry } = require('../lib/retry');
+const { sendAlert } = require('../lib/alerts');
+
+// Above this failure rate in a single run, treat it as a systemic Groww
+// problem worth paging someone about, not routine per-symbol noise (a
+// handful of delisted/renamed tickers is expected at this universe size).
+const ALERT_FAILURE_RATE = 0.1;
+const ALERT_MIN_ATTEMPTS = 20; // don't alert on e.g. 2/3 failed early in a run
 
 // Pre-warms chart history for the full tradable universe on a schedule,
 // ahead of anyone typing those symbols into Analyse — the same idea as
@@ -81,6 +88,16 @@ async function runPrewarmChartCache() {
     }
 
     console.log(`[prewarm] Done. ${newlyBackfilled} newly backfilled, ${toppedUp} topped up, ${alreadyFresh} already fresh, ${deferred} deferred (ramp-up cap), ${failed} failed.`);
+
+    const attempted = newlyBackfilled + toppedUp + failed;
+    if (failed > 0 && attempted >= ALERT_MIN_ATTEMPTS && failed / attempted > ALERT_FAILURE_RATE) {
+      sendAlert(
+        'Chart-cache pre-warm had a high failure rate',
+        `${failed}/${attempted} symbols failed this run (${(100 * failed / attempted).toFixed(1)}%). Check Railway logs for [prewarm] error lines — likely a Groww auth/outage issue affecting the whole run, not isolated bad symbols.`,
+        'prewarm-high-failure-rate'
+      ).catch(err => console.error('[prewarm] failed to send alert:', err.message));
+    }
+
     return { newlyBackfilled, toppedUp, alreadyFresh, deferred, failed };
   } finally {
     _running = false;

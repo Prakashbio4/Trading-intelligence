@@ -14,6 +14,7 @@ const { runFetchOhlc } = require('./jobs/fetchOhlc');
 const { runPopulateOutcomes } = require('./jobs/populateOutcomes');
 const { runLearnNudges } = require('./jobs/learnNudges');
 const { runPrewarmChartCache } = require('./jobs/prewarmChartCache');
+const { runGrowwHealthCheck } = require('./jobs/growwHealthCheck');
 const { loadNseEquityRows } = require('./lib/growwInstruments');
 
 const app = express();
@@ -64,6 +65,15 @@ cron.schedule('0 17 * * 1-5', () => {
   console.log('[cron] Triggering learn nudge scan...');
   runLearnNudges().catch(err => console.error('[cron] Learn nudge scan error:', err.message));
 }, { timezone: 'Asia/Kolkata' });
+
+// Synthetic Groww health check — independent of prewarm/backfill/nightly
+// fetch (which only exercise Groww when they happen to touch a symbol), so
+// an integration break gets caught within ~15 min instead of sitting
+// unnoticed for hours. Runs every day, not just weekdays — auth/outage
+// issues aren't confined to trading days.
+cron.schedule('*/15 * * * *', () => {
+  runGrowwHealthCheck().catch(err => console.error('[cron] Groww health check error:', err.message));
+});
 
 // Chart-cache pre-warm — broad NSE+BSE+SME+index universe (~7368 symbols),
 // decoupled from stock_universe. Self-scheduling loop instead of a fixed

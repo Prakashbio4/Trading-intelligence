@@ -5,6 +5,13 @@ const { fetchDailyOhlc } = require('../lib/groww');
 const { findNseSymbolCandidates } = require('../lib/growwInstruments');
 const { detectPatterns } = require('../lib/patterns');
 const { invalidateSymbol } = require('../lib/ohlcCache');
+const { sendAlert } = require('../lib/alerts');
+
+// Above this failure rate, something systemic is wrong (Groww auth/outage,
+// not just a handful of delisted tickers) — the nightly fetch feeds
+// stock_universe, which Signals scans every day, so a bad night here is a
+// direct hit to what users see, not just a background job hiccup.
+const ALERT_FAILURE_RATE = 0.1;
 
 const LOOKBACK_DAYS = 20; // fetch 20 days so 14-day window always has full data + pattern detection needs prior candles
 const INVALID_SYMBOL_CODE = 'GA001'; // Groww: "Please provide correct value of trading symbol" — never going to succeed on retry
@@ -163,6 +170,17 @@ async function runFetchOhlc() {
   const ok    = results.filter(r => r.status === 'ok').length;
   const err   = results.filter(r => r.status === 'error').length;
   console.log(`[fetchOhlc] Done. ${ok} succeeded, ${err} failed.`);
+
+  if (err > 0 && err / results.length > ALERT_FAILURE_RATE) {
+    const sample = results.filter(r => r.status === 'error').slice(0, 5)
+      .map(r => `${r.symbol}: ${r.error}`).join('\n');
+    sendAlert(
+      'Nightly OHLC fetch had a high failure rate',
+      `${err}/${results.length} symbols failed (${(100 * err / results.length).toFixed(1)}%) in tonight's fetch. Sample:\n${sample}`,
+      'fetchOhlc-high-failure-rate'
+    ).catch(alertErr => console.error('[fetchOhlc] failed to send alert:', alertErr.message));
+  }
+
   return results;
 }
 
