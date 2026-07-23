@@ -12,16 +12,22 @@ const { withRetry } = require('../lib/retry');
 // stay decoupled from Signals' nightly scan (which loops over
 // stock_universe active=true rows).
 const SINCE_DATE = '2020-01-01';
-const NEW_SYMBOLS_PER_RUN = 150; // ramp-up cap for brand-new symbols per run — see reasoning below
+const NEW_SYMBOLS_PER_RUN = 500; // ramp-up cap for brand-new symbols per run — see reasoning below
 const INTER_SYMBOL_DELAY_MS = 300; // Groww rate-limit throttle — only applied after a real Groww call, not on cheap already-fresh skips
 
-// Reasoning for 150/run: the universe grew from ~2389 (NSE only) to ~7368
-// (NSE + BSE + SME + indices) the same day this was last tuned to 75/run —
-// at the old pace that's ~98 hours (~4 days) to first full coverage, vs the
-// original goal of finishing in roughly a day. 150/run brings that to ~49
-// hours (~2 days) — a moderate, not aggressive, increase given Groww's real
-// rate limits are still unverified. Safe to raise further once a full
-// ramp-up has run without errors and confirmed there's headroom.
+// Reasoning for 150/run (original): the universe grew from ~2389 (NSE only)
+// to ~7368 (NSE + BSE + SME + indices) the same day this was last tuned to
+// 75/run — at the old pace that's ~98 hours (~4 days) to first full
+// coverage, vs the original goal of finishing in roughly a day. 150/run
+// brought that to ~49 hours (~2 days) — a moderate, not aggressive, increase
+// given Groww's real rate limits were still unverified.
+//
+// Raised to 500/run: logs from a completed 150-symbol run showed it hitting
+// the cap cleanly with zero Groww rate-limit (429) responses — every
+// failure in that run was the unrelated token-refresh timezone bug (see
+// lib/groww.js), not rate limiting. With real headroom confirmed, 500/run
+// cuts first-time coverage of the remaining universe from days to hours.
+// Revert toward 150-300 if 429s start showing up in the logs.
 let _running = false;
 
 async function runPrewarmChartCache() {
