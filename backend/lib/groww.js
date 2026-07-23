@@ -18,14 +18,26 @@ function parseSymbol(symbol) {
 let _cachedToken = null;
 let _tokenFetchedAt = null;
 
+// Re-bases a Date onto IST wall-clock time regardless of the host's own
+// timezone, so getHours()/toDateString()/etc. below reflect IST — critical
+// on Railway, whose containers run in UTC. Comparing raw `new Date()` values
+// against a `setHours(6,0,0,0)` boundary (as this used to) silently treats
+// "6 AM" as 6 AM UTC = 11:30 AM IST, a 5.5-hour window (6:00-11:30 AM IST —
+// spanning market open) where a token Groww already rotated at its real 6 AM
+// IST reset gets reused and every call fails with a 401.
+function toIST(date) {
+  return new Date(date.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+}
+
 function tokenIsStale() {
   if (!_cachedToken || !_tokenFetchedAt) return true;
-  const now = new Date();
-  const fetchedAt = new Date(_tokenFetchedAt);
+  const now = toIST(new Date());
+  const fetchedAt = toIST(new Date(_tokenFetchedAt));
   // Groww resets tokens at 6 AM IST daily. If fetch date differs from today
-  // OR it's past 6 AM and token was fetched before 6 AM today, it's stale.
+  // OR it's past 6 AM IST and the token was fetched before 6 AM IST today,
+  // it's stale.
   const todayReset = new Date(now);
-  todayReset.setHours(6, 0, 0, 0); // 6 AM local (server should be IST)
+  todayReset.setHours(6, 0, 0, 0);
   if (fetchedAt < todayReset && now >= todayReset) return true;
   if (fetchedAt.toDateString() !== now.toDateString()) return true;
   return false;
