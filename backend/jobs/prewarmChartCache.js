@@ -14,6 +14,7 @@ const { withRetry } = require('../lib/retry');
 const SINCE_DATE = '2020-01-01';
 const NEW_SYMBOLS_PER_RUN = 500; // ramp-up cap for brand-new symbols per run — see reasoning below
 const INTER_SYMBOL_DELAY_MS = 300; // Groww rate-limit throttle — only applied after a real Groww call, not on cheap already-fresh skips
+const PROGRESS_LOG_EVERY = 200; // symbols scanned between progress checkpoints — see reasoning below
 
 // Reasoning for 150/run (original): the universe grew from ~2389 (NSE only)
 // to ~7368 (NSE + BSE + SME + indices) the same day this was last tuned to
@@ -28,6 +29,15 @@ const INTER_SYMBOL_DELAY_MS = 300; // Groww rate-limit throttle — only applied
 // lib/groww.js), not rate limiting. With real headroom confirmed, 500/run
 // cuts first-time coverage of the remaining universe from days to hours.
 // Revert toward 150-300 if 429s start showing up in the logs.
+//
+// Side effect of the raise: a run now does the expensive multi-year full-
+// backfill path (several sequential Groww calls each) for up to 500 symbols
+// instead of 150, so a single run can take well over an hour — much longer
+// than the "Done" summary line used to make anyone wait. Without a
+// checkpoint in between, the per-symbol lines scrolling by (still real
+// progress) look indistinguishable from a stall. PROGRESS_LOG_EVERY prints
+// a running tally periodically so a long run stays legible without waiting
+// for it to finish.
 let _running = false;
 
 async function runPrewarmChartCache() {
@@ -51,7 +61,7 @@ async function runPrewarmChartCache() {
     let deferred = 0;
     let failed = 0;
 
-    for (const symbol of symbols) {
+    for (const [i, symbol] of symbols.entries()) {
       try {
         const hadDeepHistory = await alreadyBackfilled(symbol, SINCE_DATE);
         if (!hadDeepHistory && newlyBackfilled >= NEW_SYMBOLS_PER_RUN) {
@@ -83,6 +93,10 @@ async function runPrewarmChartCache() {
       } catch (err) {
         failed++;
         console.error(`[prewarm] ${symbol}: failed — ${err.message}`);
+      }
+
+      if ((i + 1) % PROGRESS_LOG_EVERY === 0) {
+        console.log(`[prewarm] Progress: ${i + 1}/${symbols.length} scanned — ${newlyBackfilled} newly backfilled, ${toppedUp} topped up, ${alreadyFresh} already fresh, ${deferred} deferred, ${failed} failed so far.`);
       }
     }
 
