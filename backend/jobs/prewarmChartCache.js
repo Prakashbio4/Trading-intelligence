@@ -2,7 +2,7 @@
 
 const supabase = require('../lib/supabase');
 const { loadAllEquitySymbols } = require('../lib/growwInstruments');
-const { backfillSymbol, alreadyBackfilled } = require('./backfillHistory');
+const { backfillSymbol, alreadyBackfilled, isKnownInvalidSymbol, recordInvalidSymbol, isPermanentGrowwError } = require('./backfillHistory');
 const { withRetry } = require('../lib/retry');
 
 // Pre-warms chart history for the full tradable universe on a schedule,
@@ -84,6 +84,7 @@ async function runPrewarmChartCache() {
     let alreadyFresh = 0;
     let deferred = 0;
     let failed = 0;
+    let invalidSkipped = 0;
     let nextIndex = startIndex;
     let claimsSincePersist = 0;
 
@@ -107,6 +108,16 @@ async function runPrewarmChartCache() {
           persistLastSymbol(symbol).catch(() => {}); // fire-and-forget — persistLastSymbol already logs its own failures
         }
         try {
+          // A symbol Groww has already rejected with a permanent (4xx) error
+          // — e.g. GA001 on a series-suffixed ticker like "SYMBOL-BE" — will
+          // fail identically forever. Skip it before even checking deep
+          // history, so it costs one cheap Supabase read instead of a full
+          // retry budget every single run.
+          if (await isKnownInvalidSymbol(symbol)) {
+            invalidSkipped++;
+            continue;
+          }
+
           const hadDeepHistory = await alreadyBackfilled(symbol, SINCE_DATE);
           if (!hadDeepHistory && newlyBackfilled >= NEW_SYMBOLS_PER_RUN) {
             deferred++; // ramp-up cap hit for this run — picked up next hour
@@ -126,7 +137,10 @@ async function runPrewarmChartCache() {
           // worker moves straight to the next one, so far more than
           // PREWARM_CONCURRENCY chains end up running concurrently,
           // uncoordinated with this pool's own pacing.
-          const result = await withRetry(() => backfillSymbol(symbol, SINCE_DATE, { background: false }));
+          const result = await withRetry(
+            () => backfillSymbol(symbol, SINCE_DATE, { background: false }),
+            { isRetryable: err => !isPermanentGrowwError(err) }
+          );
 
           if (result.skipped) {
             alreadyFresh++;
@@ -135,8 +149,14 @@ async function runPrewarmChartCache() {
           if (hadDeepHistory) toppedUp++;
           await new Promise(r => setTimeout(r, INTER_SYMBOL_DELAY_MS));
         } catch (err) {
-          failed++;
-          console.error(`[prewarm] ${symbol}: failed — ${err.message}`);
+          if (isPermanentGrowwError(err)) {
+            invalidSkipped++;
+            await recordInvalidSymbol(symbol, err);
+            console.error(`[prewarm] ${symbol}: permanently invalid (Groww ${err.growwStatus}${err.growwErrorCode ? ` ${err.growwErrorCode}` : ''}) — will skip on future runs`);
+          } else {
+            failed++;
+            console.error(`[prewarm] ${symbol}: failed — ${err.message}`);
+          }
         }
       }
     }
@@ -150,8 +170,8 @@ async function runPrewarmChartCache() {
     // this line, so it keeps whatever mid-run value persistLastSymbol last saved.
     await persistLastSymbol(null);
 
-    console.log(`[prewarm] Done. ${newlyBackfilled} newly backfilled, ${toppedUp} topped up, ${alreadyFresh} already fresh, ${deferred} deferred (ramp-up cap), ${failed} failed.`);
-    return { newlyBackfilled, toppedUp, alreadyFresh, deferred, failed };
+    console.log(`[prewarm] Done. ${newlyBackfilled} newly backfilled, ${toppedUp} topped up, ${alreadyFresh} already fresh, ${deferred} deferred (ramp-up cap), ${invalidSkipped} invalid (skipped), ${failed} failed.`);
+    return { newlyBackfilled, toppedUp, alreadyFresh, deferred, invalidSkipped, failed };
   } finally {
     _running = false;
   }

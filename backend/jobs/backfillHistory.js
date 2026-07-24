@@ -67,6 +67,43 @@ async function recordConfirmedFloor(symbol, sinceDate, actualFloorDate) {
   if (error) console.error(`[backfill] ${symbol}: failed to record confirmed floor — ${error.message}`);
 }
 
+// True if this symbol is already known to fail Groww's OHLC API with a
+// permanent (4xx) error — e.g. GA001 "invalid trading symbol", often from a
+// series-suffixed ticker (like "SYMBOL-BE") Groww's raw instrument CSV lists
+// but its historical-candle endpoint rejects. Retrying never helps, so
+// callers should skip straight past these instead of re-attempting forever.
+async function isKnownInvalidSymbol(symbol) {
+  const { data, error } = await supabase
+    .from('symbol_backfill_invalid')
+    .select('symbol')
+    .eq('symbol', symbol)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to check invalid-symbol record for ${symbol}: ${error.message}`);
+  return !!data;
+}
+
+// Records that Groww rejected this symbol with a permanent (4xx) error, so
+// isKnownInvalidSymbol() lets future runs skip it instead of burning a full
+// retry budget on the same doomed request every time.
+async function recordInvalidSymbol(symbol, err) {
+  const { error } = await supabase
+    .from('symbol_backfill_invalid')
+    .upsert({
+      symbol,
+      error_code: err.growwErrorCode ?? null,
+      error_message: err.message,
+      checked_at: new Date().toISOString(),
+    }, { onConflict: 'symbol' });
+  if (error) console.error(`[backfill] ${symbol}: failed to record invalid-symbol status — ${error.message}`);
+}
+
+// True for a Groww error that will fail identically no matter how many
+// times or how slowly it's retried — a 4xx response means the request
+// itself is malformed (bad symbol, bad params), not a transient hiccup.
+function isPermanentGrowwError(err) {
+  return typeof err.growwStatus === 'number' && err.growwStatus >= 400 && err.growwStatus < 500;
+}
+
 // Most recent stored date for a symbol, or null if nothing's stored yet.
 async function latestStoredDate(symbol) {
   const { data, error } = await supabase
@@ -213,4 +250,12 @@ async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false,
   return recentResult;
 }
 
-module.exports = { backfillSymbol, fetchAndStoreRange, alreadyBackfilled, latestStoredDate };
+module.exports = {
+  backfillSymbol,
+  fetchAndStoreRange,
+  alreadyBackfilled,
+  latestStoredDate,
+  isKnownInvalidSymbol,
+  recordInvalidSymbol,
+  isPermanentGrowwError,
+};

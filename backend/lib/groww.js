@@ -14,6 +14,21 @@ function parseSymbol(symbol) {
   return i === -1 ? { exchange: 'NSE', symbol } : { exchange: symbol.slice(0, i), symbol: symbol.slice(i + 1) };
 }
 
+// Attaches the HTTP status and Groww's own error code (e.g. "GA001") to the
+// thrown error so callers can tell a permanent, non-retryable failure (a
+// malformed trading symbol will 400 identically no matter how many times or
+// how slowly it's retried) apart from a transient one worth retrying.
+function growwFetchError(prefix, symbol, status, bodyText) {
+  const err = new Error(`${prefix} for ${symbol} (${status}): ${bodyText}`);
+  err.growwStatus = status;
+  try {
+    err.growwErrorCode = JSON.parse(bodyText)?.error?.code;
+  } catch {
+    // Non-JSON body — leave growwErrorCode unset, status alone is still useful.
+  }
+  return err;
+}
+
 // Token cached in memory — valid until 6 AM next day
 let _cachedToken = null;
 let _tokenFetchedAt = null;
@@ -105,12 +120,12 @@ async function fetchDailyOhlc(symbol, fromDate, toDate) {
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Groww OHLC fetch failed for ${symbol} (${res.status}): ${text}`);
+    throw growwFetchError('Groww OHLC fetch failed', symbol, res.status, text);
   }
 
   const data = await res.json();
   if (data.status !== 'SUCCESS') {
-    throw new Error(`Groww OHLC error for ${symbol}: ${JSON.stringify(data)}`);
+    throw growwFetchError('Groww OHLC error', symbol, res.status, JSON.stringify(data));
   }
 
   // Raw candle format: [timestamp_epoch_seconds, open, high, low, close, volume]
