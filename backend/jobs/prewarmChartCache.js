@@ -14,6 +14,7 @@ const { withRetry } = require('../lib/retry');
 const SINCE_DATE = '2020-01-01';
 const NEW_SYMBOLS_PER_RUN = 500; // ramp-up cap for brand-new symbols per run — see reasoning below
 const INTER_SYMBOL_DELAY_MS = 300; // Groww rate-limit throttle — only applied after a real Groww call, not on cheap already-fresh skips
+const PREWARM_CONCURRENCY = 4; // number of symbols processed in parallel — see worker-pool notes below
 
 // Reasoning for 150/run (original): the universe grew from ~2389 (NSE only)
 // to ~7368 (NSE + BSE + SME + indices) the same day this was last tuned to
@@ -42,7 +43,7 @@ async function runPrewarmChartCache() {
   _running = true;
 
   try {
-    console.log('[prewarm] Starting chart-cache pre-warm run...');
+    console.log(`[prewarm] Starting chart-cache pre-warm run (concurrency=${PREWARM_CONCURRENCY})...`);
     const symbols = await loadAllEquitySymbols();
 
     let newlyBackfilled = 0;
@@ -50,41 +51,58 @@ async function runPrewarmChartCache() {
     let alreadyFresh = 0;
     let deferred = 0;
     let failed = 0;
+    let nextIndex = 0;
 
-    for (const symbol of symbols) {
-      try {
-        const hadDeepHistory = await alreadyBackfilled(symbol, SINCE_DATE);
-        if (!hadDeepHistory && newlyBackfilled >= NEW_SYMBOLS_PER_RUN) {
-          deferred++; // ramp-up cap hit for this run — picked up next hour
-          continue;
+    // Worker-pool fan-out: each worker pulls the next unclaimed symbol off
+    // the shared `symbols` array and processes it start-to-finish (its own
+    // full/top-up backfill, including background:false's older-history
+    // await) before pulling another. `nextIndex++` and the newlyBackfilled
+    // cap check/reservation below are plain synchronous statements with no
+    // `await` in between, so JS's single-threaded event loop makes them
+    // effectively atomic across workers — no two workers can ever claim the
+    // same symbol or both slip past the ramp-up cap. Per-worker pacing
+    // (INTER_SYMBOL_DELAY_MS after each real Groww call) is unchanged, so
+    // running N workers multiplies total throughput by ~N rather than
+    // removing the rate-limit spacing entirely.
+    async function worker() {
+      while (nextIndex < symbols.length) {
+        const symbol = symbols[nextIndex++];
+        try {
+          const hadDeepHistory = await alreadyBackfilled(symbol, SINCE_DATE);
+          if (!hadDeepHistory && newlyBackfilled >= NEW_SYMBOLS_PER_RUN) {
+            deferred++; // ramp-up cap hit for this run — picked up next hour
+            continue;
+          }
+          // Reserve the new-backfill slot now (before awaiting) so the cap
+          // is exact even with concurrent workers in flight.
+          if (!hadDeepHistory) newlyBackfilled++;
+
+          // backfillSymbol already knows how to skip an already-fresh symbol
+          // cheaply (a couple of Supabase reads, no Groww call), do a small
+          // top-up if it's deep but stale, or a full backfill if it's new.
+          // background:false is load-bearing here (unlike the on-demand
+          // /universe/:symbol/backfill route, which wants the default
+          // fast-return-then-keep-fetching): without it, each new symbol
+          // fires an untracked background older-history fetch and this
+          // worker moves straight to the next one, so far more than
+          // PREWARM_CONCURRENCY chains end up running concurrently,
+          // uncoordinated with this pool's own pacing.
+          const result = await withRetry(() => backfillSymbol(symbol, SINCE_DATE, { background: false }));
+
+          if (result.skipped) {
+            alreadyFresh++;
+            continue; // no Groww call happened — nothing to rate-limit-delay for
+          }
+          if (hadDeepHistory) toppedUp++;
+          await new Promise(r => setTimeout(r, INTER_SYMBOL_DELAY_MS));
+        } catch (err) {
+          failed++;
+          console.error(`[prewarm] ${symbol}: failed — ${err.message}`);
         }
-
-        // backfillSymbol already knows how to skip an already-fresh symbol
-        // cheaply (a couple of Supabase reads, no Groww call), do a small
-        // top-up if it's deep but stale, or a full backfill if it's new —
-        // reusing it here (instead of this job's own separate refresh-
-        // everyone-every-run logic) is what makes steady-state runs fast
-        // enough to never overlap the next hourly fire. background:false is
-        // load-bearing here (unlike the on-demand /universe/:symbol/backfill
-        // route, which wants the default fast-return-then-keep-fetching):
-        // without it, each new symbol in this loop fires an untracked
-        // background older-history fetch and moves straight to the next
-        // one, so dozens of symbols' chains end up running concurrently,
-        // uncoordinated with this loop's own INTER_SYMBOL_DELAY_MS pacing —
-        // confirmed happening in production logs before this fix.
-        const result = await withRetry(() => backfillSymbol(symbol, SINCE_DATE, { background: false }));
-
-        if (result.skipped) {
-          alreadyFresh++;
-          continue; // no Groww call happened — nothing to rate-limit-delay for
-        }
-        if (hadDeepHistory) toppedUp++; else newlyBackfilled++;
-        await new Promise(r => setTimeout(r, INTER_SYMBOL_DELAY_MS));
-      } catch (err) {
-        failed++;
-        console.error(`[prewarm] ${symbol}: failed — ${err.message}`);
       }
     }
+
+    await Promise.all(Array.from({ length: PREWARM_CONCURRENCY }, () => worker()));
 
     console.log(`[prewarm] Done. ${newlyBackfilled} newly backfilled, ${toppedUp} topped up, ${alreadyFresh} already fresh, ${deferred} deferred (ramp-up cap), ${failed} failed.`);
     return { newlyBackfilled, toppedUp, alreadyFresh, deferred, failed };
