@@ -39,7 +39,32 @@ async function alreadyBackfilled(symbol, sinceDate) {
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`Failed to check existing history for ${symbol}: ${error.message}`);
-  return !!data && data.date <= sinceDate;
+  if (!data) return false;
+  if (data.date <= sinceDate) return true;
+
+  // Stored data doesn't reach sinceDate — but if a prior full-range fetch
+  // already confirmed Groww has nothing before this symbol's real listing
+  // date (recordConfirmedFloor), treat "as far back as data exists" as done
+  // instead of re-attempting the same exhausted range every run.
+  const { data: floor, error: floorError } = await supabase
+    .from('symbol_backfill_floor')
+    .select('confirmed_floor_date')
+    .eq('symbol', symbol)
+    .maybeSingle();
+  if (floorError) throw new Error(`Failed to check backfill floor for ${symbol}: ${floorError.message}`);
+  return !!floor && data.date <= floor.confirmed_floor_date;
+}
+
+// Records that Groww has confirmed no data exists before `actualFloorDate`
+// for this symbol, so alreadyBackfilled() can stop re-attempting the same
+// exhausted range. Only called when a fetch requested back to sinceDate but
+// actually got less — never for symbols that simply haven't been tried yet.
+async function recordConfirmedFloor(symbol, sinceDate, actualFloorDate) {
+  if (!actualFloorDate || actualFloorDate <= sinceDate) return;
+  const { error } = await supabase
+    .from('symbol_backfill_floor')
+    .upsert({ symbol, confirmed_floor_date: actualFloorDate, checked_at: new Date().toISOString() }, { onConflict: 'symbol' });
+  if (error) console.error(`[backfill] ${symbol}: failed to record confirmed floor — ${error.message}`);
 }
 
 // Most recent stored date for a symbol, or null if nothing's stored yet.
@@ -80,7 +105,7 @@ async function fetchAndStoreRange(symbol, fromDate, toDate) {
 
   if (!candles.length) {
     console.warn(`[backfill] ${symbol}: no candles returned for ${fromDate} -> ${toDate}`);
-    return { symbol, candles: 0 };
+    return { symbol, candles: 0, earliestDate: null, latestDate: null };
   }
 
   const enriched = enrichWithVolAvg(candles);
@@ -111,8 +136,13 @@ async function fetchAndStoreRange(symbol, fromDate, toDate) {
   }
 
   invalidateSymbol(symbol);
-  console.log(`[backfill] ${symbol}: ${rows.length} candles stored (${fromDate} -> ${toDate})`);
-  return { symbol, candles: rows.length };
+  const actualFrom = candles[0].date;
+  // Log the actual stored range, not just the requested one — Groww can
+  // legitimately return less than asked (e.g. a symbol listed after
+  // `fromDate`), and logging only the request made that look like a full
+  // success when it wasn't.
+  console.log(`[backfill] ${symbol}: ${rows.length} candles stored (${actualFrom} -> ${toDate}, requested from ${fromDate})`);
+  return { symbol, candles: rows.length, earliestDate: actualFrom, latestDate: candles[candles.length - 1].date };
 }
 
 async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false, background = true } = {}) {
@@ -150,7 +180,13 @@ async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false,
   const recentResult = await fetchAndStoreRange(symbol, recentFrom, today);
 
   if (recentFrom > sinceDate) {
-    const olderHistory = fetchAndStoreRange(symbol, sinceDate, addDays(recentFrom, -1));
+    const olderHistory = fetchAndStoreRange(symbol, sinceDate, addDays(recentFrom, -1)).then(result => {
+      // If Groww returned nothing at all for this range, recentResult's own
+      // earliestDate (from the priority-window fetch) is the true floor;
+      // otherwise it's wherever the older fetch actually started.
+      const actualFloor = result.candles > 0 ? result.earliestDate : recentResult.earliestDate;
+      return recordConfirmedFloor(symbol, sinceDate, actualFloor).then(() => result);
+    });
     if (background) {
       // Fire-and-forget — right for the on-demand "symbol just typed into
       // Analyse" caller, which wants a fast return and doesn't need the
@@ -168,6 +204,10 @@ async function backfillSymbol(symbol, sinceDate = '2020-01-01', { force = false,
     } else {
       await olderHistory;
     }
+  } else {
+    // The priority window itself already reached back to sinceDate (a young
+    // enough symbol that 500 days covers it) — check the floor here too.
+    await recordConfirmedFloor(symbol, sinceDate, recentResult.earliestDate);
   }
 
   return recentResult;
