@@ -10,7 +10,7 @@ const authRouter      = require('./routes/auth');
 const universeRouter  = require('./routes/universe');
 const learnRouter     = require('./routes/learn');
 const datafeedRouter  = require('./routes/datafeed');
-const { runFetchOhlc } = require('./jobs/fetchOhlc');
+const { runFetchOhlc, runFetchOhlcCatchUp } = require('./jobs/fetchOhlc');
 const { runPopulateOutcomes } = require('./jobs/populateOutcomes');
 const { runLearnNudges } = require('./jobs/learnNudges');
 const { runPrewarmChartCache } = require('./jobs/prewarmChartCache');
@@ -51,6 +51,14 @@ app.get('/health', (_req, res) =>
 cron.schedule('15 16 * * 1-5', () => {
   console.log('[cron] Triggering nightly OHLC fetch...');
   runFetchOhlc().catch(err => console.error('[cron] OHLC fetch error:', err.message));
+}, { timezone: 'Asia/Kolkata' });
+
+// Catch-up pass at 8 PM IST — Groww doesn't always have the day's EOD candle
+// finalized by 4:15 PM, so this retries only the symbols still missing
+// today's bar rather than waiting until tomorrow's nightly run to backfill.
+cron.schedule('0 20 * * 1-5', () => {
+  console.log('[cron] Triggering OHLC catch-up pass...');
+  runFetchOhlcCatchUp().catch(err => console.error('[cron] OHLC catch-up error:', err.message));
 }, { timezone: 'Asia/Kolkata' });
 
 cron.schedule('45 16 * * 1-5', () => {
