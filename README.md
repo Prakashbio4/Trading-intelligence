@@ -56,6 +56,8 @@ backend/    Node + Express API — auth, analyze, journal, universe routes
 See `docs/feature-backlog/` for designed-but-not-yet-built features, including:
 - **Outcome tracking for Skip/Watch decisions** — currently only partially tracked; extending "what actually happened" capture to every decision type, not just taken trades
 - **Macro context logging** — capturing the market environment at decision time alongside the trade
+- **Chart pattern detection** — automatic detection of multi-swing chart patterns (Head & Shoulders, ABCD, Dow trend structure), beyond the existing candlestick-only detector
+- **Technical rating + Analyzer page** — Chartmill-inspired technical health and setup-quality scores, plus a screener-style page that surfaces candidate setups for any ticker without requiring a chart upload
 
 ## Local development
 
