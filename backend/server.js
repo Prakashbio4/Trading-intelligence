@@ -15,6 +15,7 @@ const { runPopulateOutcomes } = require('./jobs/populateOutcomes');
 const { runLearnNudges } = require('./jobs/learnNudges');
 const { runPrewarmChartCache } = require('./jobs/prewarmChartCache');
 const { loadNseEquityRows } = require('./lib/growwInstruments');
+const { isTradingDay, mostRecentTradingDay, nowIST } = require('./lib/tradingCalendar');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -48,7 +49,18 @@ app.get('/health', (_req, res) =>
 
 // Nightly OHLC fetch — runs at 4:15 PM IST (market closes 3:30 PM, buffer for data lag)
 // Nightly pipeline: OHLC fetch at 4:15 PM IST, then outcome population at 4:45 PM IST
-cron.schedule('15 16 * * 1-5', () => {
+//
+// Both this and the catch-up pass below fire on the `1-5` (weekday) cron
+// schedule, which includes weekday market holidays — Groww simply won't
+// have published anything for those, so every symbol would otherwise be
+// logged as "missingToday" and the catch-up pass would retry the entire
+// stock_universe for nothing. The isTradingDay check skips the run entirely
+// on a known holiday instead of burning Groww calls and log noise.
+cron.schedule('15 16 * * 1-5', async () => {
+  if (!(await isTradingDay(nowIST()))) {
+    console.log('[cron] Skipping nightly OHLC fetch — market holiday.');
+    return;
+  }
   console.log('[cron] Triggering nightly OHLC fetch...');
   runFetchOhlc().catch(err => console.error('[cron] OHLC fetch error:', err.message));
 }, { timezone: 'Asia/Kolkata' });
@@ -56,7 +68,11 @@ cron.schedule('15 16 * * 1-5', () => {
 // Catch-up pass at 8 PM IST — Groww doesn't always have the day's EOD candle
 // finalized by 4:15 PM, so this retries only the symbols still missing
 // today's bar rather than waiting until tomorrow's nightly run to backfill.
-cron.schedule('0 20 * * 1-5', () => {
+cron.schedule('0 20 * * 1-5', async () => {
+  if (!(await isTradingDay(nowIST()))) {
+    console.log('[cron] Skipping OHLC catch-up pass — market holiday.');
+    return;
+  }
   console.log('[cron] Triggering OHLC catch-up pass...');
   runFetchOhlcCatchUp().catch(err => console.error('[cron] OHLC catch-up error:', err.message));
 }, { timezone: 'Asia/Kolkata' });
@@ -103,24 +119,18 @@ runPrewarmLoop();
 // already present. If not, the cron was missed (container restarted after
 // market close) — run the fetch now to catch up.
 //
-// This deliberately does NOT gate on today being a weekday — the old check
-// did, which meant a restart on a Saturday/Sunday silently skipped catch-up
-// even though Friday's close was still missing (it would then sit stale
-// until Monday's 4:15 PM cron). The "last trading day" is computed instead:
-// today itself if today is a weekday past close, otherwise walk back to the
-// most recent weekday (holidays aren't accounted for, same simplification
-// the rest of the OHLC pipeline makes).
+// This deliberately does NOT gate on today being a weekday — an earlier
+// version did, which meant a restart on a Saturday/Sunday silently skipped
+// catch-up even though Friday's close was still missing (it would then sit
+// stale until Monday's 4:15 PM cron). mostRecentTradingDay walks back over
+// both weekends and known holidays (lib/tradingCalendar.js) to find the day
+// that should actually have data.
 (async () => {
   try {
-    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const now = nowIST();
     const isAfterClose = now.getHours() > 16 || (now.getHours() === 16 && now.getMinutes() >= 15);
-    const isWeekday = now.getDay() >= 1 && now.getDay() <= 5;
 
-    const lastTradingDay = new Date(now);
-    if (!(isWeekday && isAfterClose)) lastTradingDay.setDate(lastTradingDay.getDate() - 1);
-    while (lastTradingDay.getDay() === 0 || lastTradingDay.getDay() === 6) {
-      lastTradingDay.setDate(lastTradingDay.getDate() - 1);
-    }
+    const lastTradingDay = await mostRecentTradingDay(now, { inclusive: isAfterClose });
     const lastTradingDate = lastTradingDay.toISOString().split('T')[0];
 
     const { data, error } = await supabase.from('ohlc_records').select('symbol').eq('date', lastTradingDate).limit(1);
