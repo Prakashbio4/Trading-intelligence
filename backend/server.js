@@ -99,22 +99,34 @@ async function runPrewarmLoop() {
 }
 runPrewarmLoop();
 
-// On startup: if today is a weekday and it's after 4:15 PM IST, check whether
-// today's OHLC data is already present. If not, the cron was missed (container
-// restarted after market close) — run the fetch now to catch up.
+// On startup: check whether the most recent trading day's OHLC data is
+// already present. If not, the cron was missed (container restarted after
+// market close) — run the fetch now to catch up.
+//
+// This deliberately does NOT gate on today being a weekday — the old check
+// did, which meant a restart on a Saturday/Sunday silently skipped catch-up
+// even though Friday's close was still missing (it would then sit stale
+// until Monday's 4:15 PM cron). The "last trading day" is computed instead:
+// today itself if today is a weekday past close, otherwise walk back to the
+// most recent weekday (holidays aren't accounted for, same simplification
+// the rest of the OHLC pipeline makes).
 (async () => {
   try {
     const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-    const isWeekday = now.getDay() >= 1 && now.getDay() <= 5;
     const isAfterClose = now.getHours() > 16 || (now.getHours() === 16 && now.getMinutes() >= 15);
+    const isWeekday = now.getDay() >= 1 && now.getDay() <= 5;
 
-    if (!isWeekday || !isAfterClose) return;
+    const lastTradingDay = new Date(now);
+    if (!(isWeekday && isAfterClose)) lastTradingDay.setDate(lastTradingDay.getDate() - 1);
+    while (lastTradingDay.getDay() === 0 || lastTradingDay.getDay() === 6) {
+      lastTradingDay.setDate(lastTradingDay.getDate() - 1);
+    }
+    const lastTradingDate = lastTradingDay.toISOString().split('T')[0];
 
-    const today = now.toISOString().split('T')[0];
-    const { data, error } = await supabase.from('ohlc_records').select('symbol').eq('date', today).limit(1);
-    if (error || (data && data.length > 0)) return; // already fetched today
+    const { data, error } = await supabase.from('ohlc_records').select('symbol').eq('date', lastTradingDate).limit(1);
+    if (error || (data && data.length > 0)) return; // already have the last trading day's data
 
-    console.log('[startup] No OHLC data for today — cron was likely missed, running catch-up fetch...');
+    console.log(`[startup] No OHLC data for ${lastTradingDate} (last trading day) — cron was likely missed, running catch-up fetch...`);
     await runFetchOhlc();
     await runPopulateOutcomes();
   } catch (err) {
