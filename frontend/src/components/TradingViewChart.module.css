@@ -42,3 +42,16 @@
   padding: 1px 5px;
   border-radius: 4px;
 }
+
+.attribution {
+  display: block;
+  margin-top: var(--sp-2);
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.attribution a {
+  color: inherit;
+  text-decoration: underline;
+}
