@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Nav from './components/Nav.jsx';
+import Footer from './components/Footer.jsx';
 import Analyse from './pages/Analyse.jsx';
 import Journal from './pages/Journal.jsx';
 import Insights from './pages/Insights.jsx';
@@ -55,6 +56,7 @@ export default function App() {
       <main className={styles.main}>
         <Page />
       </main>
+      <Footer />
     </div>
   );
 }
