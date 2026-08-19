@@ -190,16 +190,8 @@ export default function TradingViewChart({ symbol }) {
   }
 
   return (
-    <>
-      <div className={styles.chartContainer} ref={containerRef}>
-        {!librariesReady && <p className={styles.loading}>Loading chart library…</p>}
-      </div>
-      <span className={styles.attribution}>
-        Chart by{' '}
-        <a href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">
-          TradingView
-        </a>
-      </span>
-    </>
+    <div className={styles.chartContainer} ref={containerRef}>
+      {!librariesReady && <p className={styles.loading}>Loading chart library…</p>}
+    </div>
   );
 }
